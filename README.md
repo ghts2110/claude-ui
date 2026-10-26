@@ -6,7 +6,7 @@ Interface para o [Claude Code](https://claude.com/claude-code) no terminal: o `c
 ┌──────────────┬────────────────────────────────────────┐
 │ Conversas    │                                        │
 │              │                                        │
-│ ● refatora a │     claude                             │
+│ ● refatorar… │     claude                             │
 │ ● corrige o… │                                        │
 │ ○ nova conv… │                                        │
 │              │                                        │
