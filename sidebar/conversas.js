@@ -11,14 +11,15 @@ export const naTela = sidebar => tmux('list-panes', '-t', sidebar, '-F', '#{pane
 
 // Conversas são os panes marcados com @conversa (ver bin/conversa). A que
 // divide a janela com o sidebar é a que está na tela; as outras ficam
-// guardadas, cada uma na sua janela.
+// guardadas, cada uma na sua janela. Status e título vêm dos hooks do claude
+// (ver sidebar/status.js).
 export function ler(sidebar) {
 	const janela = tmux('display', '-p', '-t', sidebar, '#{window_id}');
-	const conversas = tmux('list-panes', '-s', '-t', sidebar, '-F', '#{pane_id}\t#{@conversa}\t#{window_id}')
+	const conversas = tmux('list-panes', '-s', '-t', sidebar, '-F', '#{pane_id}\t#{@conversa}\t#{window_id}\t#{@status}\t#{@titulo}')
 		.split('\n')
 		.map(linha => linha.split('\t'))
 		.filter(([, n]) => n)
-		.map(([id, n, w]) => ({id, n: Number(n), naTela: w === janela}))
+		.map(([id, n, w, status, titulo]) => ({id, n: Number(n), naTela: w === janela, status, titulo: titulo || 'nova conversa'}))
 		.sort((a, b) => a.n - b.n);
 	const focado = tmux('display', '-p', '-t', sidebar, '#{pane_active}') === '1';
 	return {conversas, focado};

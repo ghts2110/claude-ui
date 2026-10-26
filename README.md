@@ -6,9 +6,9 @@ Interface para o [Claude Code](https://claude.com/claude-code) no terminal: o `c
 ┌──────────────┬────────────────────────────────────────┐
 │ Conversas    │                                        │
 │              │                                        │
-│ ● refatorar  │     claude                             │
-│   api        │                                        │
-│ ○ bug login  │                                        │
+│ ● refatora a │     claude                             │
+│ ● corrige o… │                                        │
+│ ○ nova conv… │                                        │
 │              │                                        │
 │ [n] nova     │                                        │
 └──────────────┴────────────────────────────────────────┘
@@ -50,6 +50,10 @@ claude() { ~/claude-ui/bin/claude-ui "$@"; }
 Abra um terminal novo e digite `claude`. Argumentos são repassados ao Claude Code (`claude --continue`, `claude "corrige o teste"`).
 
 No sidebar, cada conversa é um `claude` separado; as que não estão na tela continuam rodando.
+
+- O título de cada conversa é a primeira mensagem dela (até lá, "nova conversa"); `/clear` volta ao provisório.
+- A bolinha mostra o status: verde quando o Claude terminou, azul quando precisa de você (pergunta, permissão ou aprovação), amarela enquanto trabalha. Vazia quando a conversa ainda não teve mensagem.
+- Título e status vêm de hooks do Claude Code, passados com `--settings` (ver `sidebar/hooks.json`). Se você também passar `--settings`, ou desligar hooks nas suas configurações, a conversa fica sem título e sem status.
 
 - `Ctrl-\` alterna o foco entre o sidebar e a conversa.
 - `↑`/`↓` ou `j`/`k` escolhem a conversa, `Enter` a traz para a tela. Com o mouse: clique no botão da conversa; a rodinha move a seleção.

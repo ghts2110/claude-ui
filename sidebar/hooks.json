@@ -1,0 +1,16 @@
+{
+	"hooks": {
+		"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "\"$CLAUDE_UI_NODE\" \"$CLAUDE_UI_ROOT/sidebar/status.js\" trabalhando"}]}],
+		"PostToolUse": [{"hooks": [{"type": "command", "command": "\"$CLAUDE_UI_NODE\" \"$CLAUDE_UI_ROOT/sidebar/status.js\" trabalhando"}]}],
+		"PreToolUse": [{"matcher": "AskUserQuestion|ExitPlanMode", "hooks": [{"type": "command", "command": "\"$CLAUDE_UI_NODE\" \"$CLAUDE_UI_ROOT/sidebar/status.js\" esperando"}]}],
+		"PermissionRequest": [{"hooks": [{"type": "command", "command": "\"$CLAUDE_UI_NODE\" \"$CLAUDE_UI_ROOT/sidebar/status.js\" esperando"}]}],
+		"Notification": [
+			{"matcher": "permission_prompt|elicitation_dialog", "hooks": [{"type": "command", "command": "\"$CLAUDE_UI_NODE\" \"$CLAUDE_UI_ROOT/sidebar/status.js\" esperando"}]},
+			{"matcher": "idle_prompt", "hooks": [{"type": "command", "command": "\"$CLAUDE_UI_NODE\" \"$CLAUDE_UI_ROOT/sidebar/status.js\" pronto"}]}
+		],
+		"PostToolUseFailure": [{"hooks": [{"type": "command", "command": "\"$CLAUDE_UI_NODE\" \"$CLAUDE_UI_ROOT/sidebar/status.js\" trabalhando"}]}],
+		"StopFailure": [{"hooks": [{"type": "command", "command": "\"$CLAUDE_UI_NODE\" \"$CLAUDE_UI_ROOT/sidebar/status.js\" pronto"}]}],
+		"SessionStart": [{"matcher": "clear", "hooks": [{"type": "command", "command": "\"$CLAUDE_UI_NODE\" \"$CLAUDE_UI_ROOT/sidebar/status.js\" limpar"}]}],
+		"Stop": [{"hooks": [{"type": "command", "command": "\"$CLAUDE_UI_NODE\" \"$CLAUDE_UI_ROOT/sidebar/status.js\" pronto"}]}]
+	}
+}

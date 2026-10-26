@@ -8,13 +8,22 @@ const {tmux} = conv;
 const ler = () => conv.ler(sidebar);
 const naTela = () => conv.naTela(sidebar);
 
+// Tons médios, legíveis em tema claro e escuro. Sem status (nenhuma mensagem
+// ainda): bolinha vazia.
+const cores = {pronto: '#2ea043', esperando: '#3b82f6', trabalhando: '#d4a017'};
+
 function Conversa({conversa, sobCursor}) {
 	const cor = sobCursor ? 'cyan' : conversa.naTela ? undefined : 'gray';
+	const status = cores[conversa.status];
 	return h(
 		Box,
 		{borderStyle: 'round', borderColor: cor ?? 'white', paddingX: 1, flexShrink: 0},
-		h(Text, {color: conversa.naTela ? undefined : 'gray'}, conversa.naTela ? '● ' : '○ '),
-		h(Text, {bold: conversa.naTela, color: cor}, `conversa ${conversa.n}`),
+		h(
+			Text,
+			{wrap: 'truncate-end'},
+			h(Text, {color: status ?? 'gray'}, status ? '● ' : '○ '),
+			h(Text, {bold: conversa.naTela, color: cor}, conversa.titulo),
+		),
 	);
 }
 
@@ -138,7 +147,7 @@ function Sidebar() {
 	});
 
 	let rodape;
-	if (confirmar) rodape = [h(Text, {key: 1, color: 'yellow'}, `fechar conversa ${alvo?.n}?`), h(Text, {key: 2, dimColor: true}, 's sim · n não')];
+	if (confirmar) rodape = [h(Text, {key: 1, color: 'yellow', wrap: 'truncate-end'}, `fechar ${alvo?.titulo}?`), h(Text, {key: 2, dimColor: true}, 's sim · n não')];
 	else if (focado) rodape = [h(Text, {key: 1, dimColor: true}, '↑↓ enter  abrir'), h(Text, {key: 2, dimColor: true}, 'n nova · x fechar'), h(Text, {key: 3, dimColor: true}, 'esc  voltar')];
 	else rodape = [h(Text, {key: 1, dimColor: true}, 'ctrl+t  nova'), h(Text, {key: 2, dimColor: true}, 'ctrl+w  fechar')];
 

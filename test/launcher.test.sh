@@ -65,7 +65,7 @@ abrir 30 --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S'
 panes=$(T list-panes -a -F '#{pane_left}:#{pane_width}' | tr '\n' ' ')
 [ "$panes" = "0:24 25:95 " ] && ok "sidebar à esquerda e claude no resto" \
 	|| falha "layout inesperado: $panes"
-esperado=$(printf '%s\n' --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S')
+esperado=$(printf '%s\n' --settings "$ROOT/sidebar/hooks.json" --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S')
 [ "$(cat "$TMP/args")" = "$esperado" ] && ok "argumentos chegam ao claude" \
 	|| falha "argumentos: $(cat "$TMP/args" | tr '\n' '|')"
 grep -q "CLAUDE_UI=1" "$TMP/env" && ok "claude roda marcado como dentro da interface" \
@@ -99,9 +99,10 @@ tecla x; tecla s
 [ "$(conversas)" = "1 3 " ] && [ "$(na_tela)" = 3 ] && [ "$(T display -p '#{@conversa}')" = 3 ] \
 	&& ok "x fecha a conversa e o foco vai para a que assume" || falha "x: $(conversas)/$(na_tela)"
 # Cursor deixado em outra conversa: ao voltar ao sidebar, x mira a da tela.
+T set -p -t "$(T list-panes -t "$sb" -F '#{pane_id}' | tail -1)" @titulo terceira
 tecla Up; T select-pane -t "$(T list-panes -t "$sb" -F '#{pane_id}' | tail -1)"; sleep 0.5
 tecla x
-T capture-pane -p -t "$sb" | grep -q "fechar conversa 3?" \
+T capture-pane -p -t "$sb" | grep -q "fechar terceira?" \
 	&& ok "x mira a conversa na tela" || falha "x mira: $(T capture-pane -p -t "$sb" | grep fechar)"
 tecla Escape
 sair 1
@@ -130,6 +131,35 @@ tecla n
 # Clique esquerdo no primeiro botão (linha 4).
 T send-keys -t "$sb" -l "$(printf '\033[<0;5;4M')"; sleep 1.5
 [ "$(na_tela)" = 4 ] && ok "clique traz a conversa para a tela" || falha "clique: $(na_tela)"
+
+# Hooks do claude marcam status e título; o primeiro prompt vira o título.
+hook() {
+	printf '%s' "$3" > "$TMP/hook"
+	T run-shell "TMUX_PANE=$1 '$(command -v node)' '$ROOT/sidebar/status.js' $2 < '$TMP/hook'"
+	sleep 0.5
+}
+item() { T capture-pane -p -t "$sb" | grep -m1 "$1"; }
+pane=$(T list-panes -t "$sb" -F '#{pane_id} #{@conversa}' | awk '$2 { print $1 }')
+item "○ nova conversa" >/dev/null && ok "conversa sem mensagem tem título provisório" \
+	|| falha "título provisório: $(T capture-pane -p -t "$sb")"
+hook "$pane" trabalhando '{"prompt":"corrige   o teste\nde login que está quebrado"}'
+hook "$pane" esperando '{"prompt":"outra coisa"}'
+[ "$(T show -pv -t "$pane" @status)" = esperando ] && item "● corrige o teste" >/dev/null \
+	&& ok "hook marca status e título da primeira mensagem" \
+	|| falha "hook: $(T show -pv -t "$pane" @status) $(item corrige)"
+[ "$(T show -pv -t "$pane" @titulo)" = "corrige o teste de login que está quebrado" ] \
+	&& item "corrige" | grep -q "…" && ok "título longo é truncado" || falha "truncar: $(item corrige)"
+# Esc interrompe o claude: a conversa trabalhando passa a pronta.
+hook "$pane" trabalhando '{}'
+T send-keys -K -c "$cliente" Escape; sleep 0.5
+[ "$(T show -pv -t "$pane" @status)" = pronto ] && ok "esc tira a conversa de trabalhando" \
+	|| falha "esc: $(T show -pv -t "$pane" @status)"
+# /clear apaga título e status; o ';' final chega inteiro ao título.
+hook "$pane" limpar '{}'
+item "○ nova conversa" >/dev/null && ok "/clear volta ao título provisório" || falha "limpar: $(item conversa)"
+hook "$pane" trabalhando '{"prompt":"fim;"}'
+[ "$(T show -pv -t "$pane" @titulo)" = "fim;" ] && ok "título termina com ;" \
+	|| falha "título com ;: $(T show -pv -t "$pane" @titulo)"
 
 # Fechar o terminal encerra tudo.
 kill -HUP "$PID"; wait "$PID" 2>/dev/null; sleep 1
