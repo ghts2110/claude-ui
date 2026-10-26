@@ -1,0 +1,69 @@
+#!/bin/sh
+# Launcher do claude-ui: abre o tmux com o sidebar à esquerda e o Claude Code
+# ocupando o resto. Argumentos são repassados ao Claude Code.
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd -P)
+
+# Binário original, nunca a função do ~/.zshrc.
+CLAUDE_BIN=$(command -v claude)
+if [ -z "$CLAUDE_BIN" ]; then
+	echo "claude-ui: Claude Code não encontrado no PATH." >&2
+	exit 127
+fi
+
+# Já dentro do claude-ui (ou de outro tmux), ou fora de um terminal
+# (pipes, scripts): roda o claude puro.
+if [ -n "$CLAUDE_UI" ] || [ -n "$TMUX" ] || [ ! -t 0 ] || [ ! -t 1 ]; then
+	exec "$CLAUDE_BIN" "$@"
+fi
+
+# Modos não interativos e subcomandos também: a saída deles sumiria com o tmux.
+case $1 in
+	agents | attach | auth | auto-mode | doctor | gateway | import | install | \
+	logs | mcp | plugin | plugins | purge | respawn | rm | setup-token | stop | \
+	kill | ultrareview | update | upgrade)
+		exec "$CLAUDE_BIN" "$@" ;;
+esac
+for arg do
+	case $arg in
+		-p | --print | -v | --version | -h | --help) exec "$CLAUDE_BIN" "$@" ;;
+	esac
+done
+
+if ! command -v tmux >/dev/null 2>&1; then
+	echo "claude-ui: tmux não encontrado. Instale com 'brew install tmux'" >&2
+	echo "ou use 'command claude' para abrir o Claude Code sem a interface." >&2
+	exit 1
+fi
+
+NODE_BIN=$(command -v node)
+if [ -z "$NODE_BIN" ]; then
+	echo "claude-ui: Node não encontrado. Instale o Node 20+" >&2
+	echo "ou use 'command claude' para abrir o Claude Code sem a interface." >&2
+	exit 1
+fi
+
+if [ ! -d "$ROOT/node_modules/ink" ]; then
+	echo "claude-ui: dependências faltando. Rode 'npm install' em $ROOT" >&2
+	exit 1
+fi
+
+# O tmux lê um argumento terminado em ';' como separador de comandos;
+# escapa para ele chegar intacto ao claude.
+for arg do
+	shift
+	case $arg in
+		*\;) arg="${arg%;}\\;" ;;
+	esac
+	set -- "$@" "$arg"
+done
+
+# Um servidor tmux por terminal, para cada claude herdar o ambiente do
+# terminal que o abriu. Sessão criada já anexada: com destroy-unattached, uma
+# sessão em segundo plano morreria antes do attach. O sidebar é aberto de
+# dentro do pane principal, para os argumentos do claude não passarem pelo
+# parser do tmux.
+exec tmux -L "${CLAUDE_UI_SOCKET:-claude-ui-$$}" -f "$ROOT/tmux.conf" \
+	new-session -s claude-ui \
+	-e CLAUDE_UI=1 -e CLAUDE_UI_ROOT="$ROOT" -e CLAUDE_UI_NODE="$NODE_BIN" -- \
+	"$ROOT/bin/main-pane" "$CLAUDE_BIN" "$@"

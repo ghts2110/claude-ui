@@ -1,0 +1,19 @@
+{
+  "name": "claude-ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sidebar de conversas para o Claude Code no terminal",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "sidebar": "node sidebar/index.js",
+    "test": "sh test/launcher.test.sh"
+  },
+  "dependencies": {
+    "ink": "^5.2.1",
+    "react": "^18.3.1"
+  }
+}
