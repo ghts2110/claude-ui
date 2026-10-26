@@ -5,7 +5,9 @@ import {render, Box, Text, useInput, useStdout} from 'ink';
 const h = React.createElement;
 const sidebar = process.env.TMUX_PANE;
 
-const tmux = (...args) => execFileSync('tmux', args, {encoding: 'utf8'}).trim();
+const tmux = (...args) => execFileSync('tmux', args, {encoding: 'utf8', stdio: 'pipe'}).trim();
+const naTela = () => tmux('list-panes', '-t', sidebar, '-F', '#{pane_id} #{@conversa}')
+	.split('\n').map(linha => linha.split(' ')).find(([, n]) => n)?.[0];
 
 // Conversas são os panes marcados com @conversa (ver bin/conversa). A que
 // divide a janela com o sidebar é a que está na tela; as outras ficam
@@ -28,16 +30,21 @@ function criar() {
 }
 
 // Traz a conversa para a área principal; a que estava lá vai para a janela dela.
-function mostrar(id, conversas) {
-	const atual = conversas.find(c => c.naTela);
-	if (atual && atual.id !== id) tmux('swap-pane', '-d', '-s', id, '-t', atual.id);
+// A janela guardada assume antes o tamanho da área principal, para o claude
+// não ser redimensionado a cada troca.
+function mostrar(id) {
+	const atual = naTela();
+	if (!atual || atual === id) return;
+	const [largura, altura] = tmux('display', '-p', '-t', atual, '#{pane_width} #{pane_height}').split(' ');
+	tmux('resize-window', '-t', id, '-x', largura, '-y', altura);
+	tmux('swap-pane', '-d', '-s', id, '-t', atual);
 }
 
 function fechar(id, conversas) {
 	const i = conversas.findIndex(c => c.id === id);
-	if (conversas[i].naTela) {
+	if (naTela() === id) {
 		const vizinha = conversas[i + 1] ?? conversas[i - 1];
-		tmux('swap-pane', '-d', '-s', vizinha ? vizinha.id : criar(), '-t', id);
+		mostrar(vizinha ? vizinha.id : criar());
 	}
 	tmux('kill-pane', '-t', id);
 }
@@ -46,7 +53,7 @@ function Conversa({conversa, sobCursor}) {
 	const cor = sobCursor ? 'cyan' : conversa.naTela ? undefined : 'gray';
 	return h(
 		Box,
-		{borderStyle: 'round', borderColor: cor ?? 'white', paddingX: 1},
+		{borderStyle: 'round', borderColor: cor ?? 'white', paddingX: 1, flexShrink: 0},
 		h(Text, {color: conversa.naTela ? undefined : 'gray'}, conversa.naTela ? '● ' : '○ '),
 		h(Text, {bold: conversa.naTela, color: cor}, `conversa ${conversa.n}`),
 	);
@@ -57,8 +64,13 @@ function Sidebar() {
 	const [linhas, setLinhas] = useState(stdout.rows);
 	const [estado, setEstado] = useState(ler);
 	const [cursor, setCursor] = useState(null);
-	const [confirmar, setConfirmar] = useState(false);
-	const atualizar = () => setEstado(ler());
+	// Id da conversa a fechar, enquanto espera o "s".
+	const [confirmar, setConfirmar] = useState(null);
+	const atualizar = () => {
+		try {
+			setEstado(ler());
+		} catch {}
+	};
 
 	useEffect(() => {
 		const redimensionar = () => setLinhas(stdout.rows);
@@ -70,6 +82,12 @@ function Sidebar() {
 		tmux('set-hook', '-g', 'pane-focus-in', aviso);
 		tmux('set-hook', '-g', 'pane-exited', aviso);
 		const intervalo = setInterval(atualizar, 1000);
+		process.on('exit', () => {
+			try {
+				tmux('set-hook', '-gu', 'pane-focus-in');
+				tmux('set-hook', '-gu', 'pane-exited');
+			} catch {}
+		});
 		return () => {
 			stdout.off('resize', redimensionar);
 			process.off('SIGUSR2', atualizar);
@@ -84,16 +102,31 @@ function Sidebar() {
 	const sob = conversas[i];
 
 	useEffect(() => {
-		if (!focado) setConfirmar(false);
+		if (!focado) setConfirmar(null);
 	}, [focado]);
+
+	// A conversa a fechar saiu sozinha enquanto esperava o "s": desiste.
+	const alvo = conversas.find(c => c.id === confirmar);
+	useEffect(() => {
+		if (confirmar && !alvo) setConfirmar(null);
+	}, [confirmar, alvo]);
+
+	// Um pane pode sumir entre a leitura e a ação (até 1s); o comando do tmux
+	// falha e a lista é relida, sem derrubar o sidebar.
+	const agir = acao => {
+		try {
+			acao();
+		} catch {}
+		atualizar();
+	};
 
 	useInput((input, key) => {
 		if (confirmar) {
-			setConfirmar(false);
-			if (input === 's' && sob) {
-				fechar(sob.id, conversas);
-				setCursor((conversas[i + 1] ?? conversas[i - 1])?.id ?? null);
-				atualizar();
+			setConfirmar(null);
+			if (input === 's' && alvo) {
+				const j = conversas.indexOf(alvo);
+				setCursor((conversas[j + 1] ?? conversas[j - 1])?.id ?? null);
+				agir(() => fechar(alvo.id, conversas));
 			}
 			return;
 		}
@@ -101,22 +134,27 @@ function Sidebar() {
 		if (key.upArrow || input === 'k') setCursor(conversas[Math.max(0, i - 1)]?.id);
 		else if (key.downArrow || input === 'j') setCursor(conversas[Math.min(conversas.length - 1, i + 1)]?.id);
 		else if (key.return && sob) {
-			mostrar(sob.id, conversas);
-			tmux('select-pane', '-t', sob.id);
+			agir(() => {
+				mostrar(sob.id);
+				tmux('select-pane', '-t', sob.id);
+			});
 		} else if (input === 'n') {
-			const id = criar();
-			mostrar(id, conversas);
-			tmux('select-pane', '-t', id);
-			setCursor(id);
-		} else if (input === 'x' && sob) setConfirmar(true);
-		else if (key.escape) {
-			const naTela = conversas.find(c => c.naTela);
-			if (naTela) tmux('select-pane', '-t', naTela.id);
-		}
+			agir(() => {
+				const id = criar();
+				mostrar(id);
+				tmux('select-pane', '-t', id);
+				setCursor(id);
+			});
+		} else if (input === 'x' && sob) setConfirmar(sob.id);
+		else if (key.escape) agir(() => tmux('select-pane', '-t', naTela()));
 	});
 
+	// Só cabem algumas conversas: mostra a fatia em volta do cursor.
+	const cabem = Math.max(1, Math.floor((linhas - 5) / 3));
+	const inicio = Math.min(Math.max(0, i - Math.floor(cabem / 2)), Math.max(0, conversas.length - cabem));
+
 	let rodape;
-	if (confirmar) rodape = [h(Text, {key: 1, color: 'yellow'}, `fechar conversa ${sob.n}?`), h(Text, {key: 2, dimColor: true}, 's sim · n não')];
+	if (confirmar) rodape = [h(Text, {key: 1, color: 'yellow'}, `fechar conversa ${alvo?.n}?`), h(Text, {key: 2, dimColor: true}, 's sim · n não')];
 	else if (focado) rodape = [h(Text, {key: 1, dimColor: true}, '↑↓ enter  abrir'), h(Text, {key: 2, dimColor: true}, 'n nova · x fechar'), h(Text, {key: 3, dimColor: true}, 'esc  voltar')];
 	else rodape = [h(Text, {key: 1, dimColor: true}, 'ctrl+\\ navegar')];
 
@@ -127,11 +165,11 @@ function Sidebar() {
 		h(
 			Box,
 			{flexDirection: 'column', marginTop: 1, flexGrow: 1, overflow: 'hidden'},
-			conversas.map((c, j) =>
-				h(Conversa, {key: c.id, conversa: c, sobCursor: focado && j === i}),
+			conversas.slice(inicio, inicio + cabem).map(c =>
+				h(Conversa, {key: c.id, conversa: c, sobCursor: focado && c === sob}),
 			),
 		),
-		h(Box, {flexDirection: 'column'}, rodape),
+		h(Box, {flexDirection: 'column', height: 3, flexShrink: 0, justifyContent: 'flex-end'}, rodape),
 	);
 }
 
