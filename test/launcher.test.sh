@@ -96,8 +96,14 @@ tecla Up; tecla Enter
 [ "$(na_tela)" = 2 ] && [ "$(T display -p '#{@conversa}')" = 2 ] \
 	&& ok "enter traz a conversa para a tela" || falha "enter: $(na_tela)"
 tecla x; tecla s
-[ "$(conversas)" = "1 3 " ] && [ "$(na_tela)" = 3 ] \
-	&& ok "x fecha a conversa e outra assume" || falha "x: $(conversas)/$(na_tela)"
+[ "$(conversas)" = "1 3 " ] && [ "$(na_tela)" = 3 ] && [ "$(T display -p '#{@conversa}')" = 3 ] \
+	&& ok "x fecha a conversa e o foco vai para a que assume" || falha "x: $(conversas)/$(na_tela)"
+# Cursor deixado em outra conversa: ao voltar ao sidebar, x mira a da tela.
+tecla Up; T select-pane -t "$(T list-panes -t "$sb" -F '#{pane_id}' | tail -1)"; sleep 0.5
+tecla x
+T capture-pane -p -t "$sb" | grep -q "fechar conversa 3?" \
+	&& ok "x mira a conversa na tela" || falha "x mira: $(T capture-pane -p -t "$sb" | grep fechar)"
+tecla Escape
 sair 1
 [ "$(conversas)" = "3 " ] && [ "$(na_tela)" = 3 ] \
 	&& ok "conversa encerrada some da lista" || falha "exit: $(conversas)/$(na_tela)"

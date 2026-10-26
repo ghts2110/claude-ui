@@ -104,8 +104,11 @@ function Sidebar() {
 	if (i < 0) i = Math.max(0, conversas.findIndex(c => c.naTela));
 	const sob = conversas[i];
 
+	// Ao ganhar o foco, o cursor volta para a conversa na tela: assim
+	// Ctrl-\ x sempre mira a conversa que se está vendo.
 	useEffect(() => {
-		if (!focado) setConfirmar(null);
+		setConfirmar(null);
+		if (focado) setCursor(null);
 	}, [focado]);
 
 	// A conversa a fechar saiu sozinha enquanto esperava o "s": desiste.
@@ -161,9 +164,11 @@ function Sidebar() {
 		if (confirmar) {
 			setConfirmar(null);
 			if (input === 's' && alvo) {
-				const j = conversas.indexOf(alvo);
-				setCursor((conversas[j + 1] ?? conversas[j - 1])?.id ?? null);
-				agir(() => fechar(alvo.id, conversas));
+				// Fechada, o foco volta para a conversa que ficou na tela.
+				agir(() => {
+					fechar(alvo.id, conversas);
+					tmux('select-pane', '-t', naTela());
+				});
 			}
 			return;
 		}
@@ -185,7 +190,7 @@ function Sidebar() {
 	let rodape;
 	if (confirmar) rodape = [h(Text, {key: 1, color: 'yellow'}, `fechar conversa ${alvo?.n}?`), h(Text, {key: 2, dimColor: true}, 's sim · n não')];
 	else if (focado) rodape = [h(Text, {key: 1, dimColor: true}, '↑↓ enter  abrir'), h(Text, {key: 2, dimColor: true}, 'n nova · x fechar'), h(Text, {key: 3, dimColor: true}, 'esc  voltar')];
-	else rodape = [h(Text, {key: 1, dimColor: true}, 'ctrl+\\ navegar')];
+	else rodape = [h(Text, {key: 1, dimColor: true}, 'ctrl+\\ n  nova'), h(Text, {key: 2, dimColor: true}, 'ctrl+\\ x  fechar')];
 
 	return h(
 		Box,

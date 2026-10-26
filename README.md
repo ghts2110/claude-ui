@@ -54,6 +54,7 @@ No sidebar, cada conversa é um `claude` separado; as que não estão na tela co
 - `Ctrl-\` alterna o foco entre o sidebar e a conversa.
 - `↑`/`↓` ou `j`/`k` escolhem a conversa, `Enter` a traz para a tela. Com o mouse: clique no botão da conversa; a rodinha move a seleção.
 - `n` abre uma conversa nova, `x` fecha a selecionada (pede confirmação), `Esc` volta para a conversa.
+- Direto da conversa: `Ctrl-\` `n` abre uma nova e `Ctrl-\` `x` `s` fecha a que está na tela.
 - `/exit` numa conversa a tira da lista; na última, fecha a interface.
 - Argumentos do `claude` valem só para a primeira conversa; as novas abrem vazias.
 
