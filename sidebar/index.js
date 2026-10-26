@@ -82,7 +82,10 @@ function Sidebar() {
 		tmux('set-hook', '-g', 'pane-focus-in', aviso);
 		tmux('set-hook', '-g', 'pane-exited', aviso);
 		const intervalo = setInterval(atualizar, 1000);
+		// Pede ao tmux os cliques e a rodinha do mouse, no formato SGR.
+		stdout.write('\x1b[?1000h\x1b[?1006h');
 		process.on('exit', () => {
+			stdout.write('\x1b[?1000l\x1b[?1006l');
 			try {
 				tmux('set-hook', '-gu', 'pane-focus-in');
 				tmux('set-hook', '-gu', 'pane-exited');
@@ -120,7 +123,41 @@ function Sidebar() {
 		atualizar();
 	};
 
+	const abrir = id =>
+		agir(() => {
+			mostrar(id);
+			tmux('select-pane', '-t', id);
+		});
+
+	// Só cabem algumas conversas: mostra a fatia em volta do cursor.
+	const cabem = Math.max(1, Math.floor((linhas - 5) / 3));
+	const inicio = Math.min(Math.max(0, i - Math.floor(cabem / 2)), Math.max(0, conversas.length - cabem));
+	const visiveis = conversas.slice(inicio, inicio + cabem);
+
+	// Clique (botão 0) abre a conversa; a rodinha (64/65) move o cursor. Os
+	// botões começam na linha 3 e têm 3 linhas cada.
+	function mouse(botao, linha) {
+		if (botao === 64) setCursor(conversas[Math.max(0, i - 1)]?.id);
+		else if (botao === 65) setCursor(conversas[Math.min(conversas.length - 1, i + 1)]?.id);
+		else if (botao === 0 && linha >= 3) {
+			const conversa = visiveis[Math.floor((linha - 3) / 3)];
+			if (conversa) {
+				setConfirmar(null);
+				setCursor(conversa.id);
+				abrir(conversa.id);
+			}
+		}
+	}
+
 	useInput((input, key) => {
+		const eventos = [...input.matchAll(/\[<(\d+);\d+;(\d+)([Mm])/g)];
+		if (eventos.length) {
+			for (const [, botao, linha, tipo] of eventos) {
+				if (tipo === 'M') mouse(Number(botao), Number(linha));
+			}
+			return;
+		}
+
 		if (confirmar) {
 			setConfirmar(null);
 			if (input === 's' && alvo) {
@@ -133,12 +170,8 @@ function Sidebar() {
 
 		if (key.upArrow || input === 'k') setCursor(conversas[Math.max(0, i - 1)]?.id);
 		else if (key.downArrow || input === 'j') setCursor(conversas[Math.min(conversas.length - 1, i + 1)]?.id);
-		else if (key.return && sob) {
-			agir(() => {
-				mostrar(sob.id);
-				tmux('select-pane', '-t', sob.id);
-			});
-		} else if (input === 'n') {
+		else if (key.return && sob) abrir(sob.id);
+		else if (input === 'n') {
 			agir(() => {
 				const id = criar();
 				mostrar(id);
@@ -148,10 +181,6 @@ function Sidebar() {
 		} else if (input === 'x' && sob) setConfirmar(sob.id);
 		else if (key.escape) agir(() => tmux('select-pane', '-t', naTela()));
 	});
-
-	// Só cabem algumas conversas: mostra a fatia em volta do cursor.
-	const cabem = Math.max(1, Math.floor((linhas - 5) / 3));
-	const inicio = Math.min(Math.max(0, i - Math.floor(cabem / 2)), Math.max(0, conversas.length - cabem));
 
 	let rodape;
 	if (confirmar) rodape = [h(Text, {key: 1, color: 'yellow'}, `fechar conversa ${alvo?.n}?`), h(Text, {key: 2, dimColor: true}, 's sim · n não')];
@@ -165,7 +194,7 @@ function Sidebar() {
 		h(
 			Box,
 			{flexDirection: 'column', marginTop: 1, flexGrow: 1, overflow: 'hidden'},
-			conversas.slice(inicio, inicio + cabem).map(c =>
+			visiveis.map(c =>
 				h(Conversa, {key: c.id, conversa: c, sobCursor: focado && c === sob}),
 			),
 		),

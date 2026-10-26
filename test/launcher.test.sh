@@ -107,6 +107,12 @@ tecla x; tecla s
 tecla n; sair 5
 [ "$(conversas)" = "4 " ] && [ "$(na_tela)" = 4 ] \
 	&& ok "encerrar a conversa na tela traz outra" || falha "exit na tela: $(conversas)/$(na_tela)"
+tecla n
+[ "$(T display -p -t "$sb" '#{mouse_sgr_flag}')" = 1 ] && ok "sidebar recebe o mouse" \
+	|| falha "sidebar não pediu o mouse"
+# Clique esquerdo no primeiro botão (linha 4).
+T send-keys -t "$sb" -l "$(printf '\033[<0;5;4M')"; sleep 1.5
+[ "$(na_tela)" = 4 ] && ok "clique traz a conversa para a tela" || falha "clique: $(na_tela)"
 
 # Fechar o terminal encerra tudo.
 kill -HUP "$PID"; wait "$PID" 2>/dev/null; sleep 1

@@ -51,8 +51,8 @@ Abra um terminal novo e digite `claude`. Argumentos são repassados ao Claude Co
 
 No sidebar, cada conversa é um `claude` separado; as que não estão na tela continuam rodando.
 
-- `Ctrl-\` alterna o foco entre o sidebar e a conversa (clicar no sidebar também funciona).
-- `↑`/`↓` ou `j`/`k` escolhem a conversa, `Enter` a traz para a tela.
+- `Ctrl-\` alterna o foco entre o sidebar e a conversa.
+- `↑`/`↓` ou `j`/`k` escolhem a conversa, `Enter` a traz para a tela. Com o mouse: clique no botão da conversa; a rodinha move a seleção.
 - `n` abre uma conversa nova, `x` fecha a selecionada (pede confirmação), `Esc` volta para a conversa.
 - `/exit` numa conversa a tira da lista; na última, fecha a interface.
 - Argumentos do `claude` valem só para a primeira conversa; as novas abrem vazias.
