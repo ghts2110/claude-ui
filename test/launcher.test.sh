@@ -113,6 +113,17 @@ tecla x; tecla s
 tecla n; sair 5
 [ "$(conversas)" = "4 " ] && [ "$(na_tela)" = 4 ] \
 	&& ok "encerrar a conversa na tela traz outra" || falha "exit na tela: $(conversas)/$(na_tela)"
+# Atalhos globais, como se digitados no terminal.
+cliente=$(T list-clients -F '#{client_name}')
+atalho() { T send-keys -K -c "$cliente" "$1"; sleep 1.5; }
+atalho C-t
+[ "$(conversas)" = "4 6 " ] && [ "$(na_tela)" = 6 ] && [ "$(T display -p '#{@conversa}')" = 6 ] \
+	&& ok "ctrl-t abre conversa nova" || falha "ctrl-t: $(conversas)/$(na_tela)"
+atalho C-w; atalho n
+[ "$(conversas)" = "4 6 " ] && ok "ctrl-w n não fecha" || falha "ctrl-w n: $(conversas)"
+atalho C-w; atalho s
+[ "$(conversas)" = "4 " ] && [ "$(na_tela)" = 4 ] && [ "$(T display -p '#{@conversa}')" = 4 ] \
+	&& ok "ctrl-w s fecha a conversa da tela" || falha "ctrl-w s: $(conversas)/$(na_tela)"
 tecla n
 [ "$(T display -p -t "$sb" '#{mouse_sgr_flag}')" = 1 ] && ok "sidebar recebe o mouse" \
 	|| falha "sidebar não pediu o mouse"

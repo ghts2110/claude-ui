@@ -9,4 +9,10 @@ tmux set -q @sidebar "$sidebar"
 # Sidebar com largura fixa ao redimensionar a janela.
 tmux set-hook -w window-resized "resize-pane -t $sidebar -x 24"
 
+# Ctrl-T abre uma conversa nova e Ctrl-W fecha a da tela, de qualquer pane.
+acao="$CLAUDE_UI_NODE $CLAUDE_UI_ROOT/sidebar/acao.js"
+tmux bind -n C-t run-shell -b "$acao nova $sidebar"
+tmux bind -n C-w confirm-before -b -c s -p "fechar a conversa da tela? (s/n)" \
+	"run-shell -b '$acao fechar $sidebar'"
+
 exec "$CLAUDE_UI_ROOT/bin/conversa" "$@"

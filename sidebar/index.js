@@ -1,53 +1,12 @@
 import React, {useEffect, useState} from 'react';
-import {execFileSync} from 'node:child_process';
 import {render, Box, Text, useInput, useStdout} from 'ink';
+import * as conv from './conversas.js';
 
 const h = React.createElement;
 const sidebar = process.env.TMUX_PANE;
-
-const tmux = (...args) => execFileSync('tmux', args, {encoding: 'utf8', stdio: 'pipe'}).trim();
-const naTela = () => tmux('list-panes', '-t', sidebar, '-F', '#{pane_id} #{@conversa}')
-	.split('\n').map(linha => linha.split(' ')).find(([, n]) => n)?.[0];
-
-// Conversas são os panes marcados com @conversa (ver bin/conversa). A que
-// divide a janela com o sidebar é a que está na tela; as outras ficam
-// guardadas, cada uma na sua janela.
-function ler() {
-	const janela = tmux('display', '-p', '-t', sidebar, '#{window_id}');
-	const conversas = tmux('list-panes', '-s', '-F', '#{pane_id}\t#{@conversa}\t#{window_id}')
-		.split('\n')
-		.map(linha => linha.split('\t'))
-		.filter(([, n]) => n)
-		.map(([id, n, w]) => ({id, n: Number(n), naTela: w === janela}))
-		.sort((a, b) => a.n - b.n);
-	const focado = tmux('display', '-p', '-t', sidebar, '#{pane_active}') === '1';
-	return {conversas, focado};
-}
-
-function criar() {
-	return tmux('new-window', '-d', '-P', '-F', '#{pane_id}', '--',
-		`${process.env.CLAUDE_UI_ROOT}/bin/conversa`);
-}
-
-// Traz a conversa para a área principal; a que estava lá vai para a janela dela.
-// A janela guardada assume antes o tamanho da área principal, para o claude
-// não ser redimensionado a cada troca.
-function mostrar(id) {
-	const atual = naTela();
-	if (!atual || atual === id) return;
-	const [largura, altura] = tmux('display', '-p', '-t', atual, '#{pane_width} #{pane_height}').split(' ');
-	tmux('resize-window', '-t', id, '-x', largura, '-y', altura);
-	tmux('swap-pane', '-d', '-s', id, '-t', atual);
-}
-
-function fechar(id, conversas) {
-	const i = conversas.findIndex(c => c.id === id);
-	if (naTela() === id) {
-		const vizinha = conversas[i + 1] ?? conversas[i - 1];
-		mostrar(vizinha ? vizinha.id : criar());
-	}
-	tmux('kill-pane', '-t', id);
-}
+const {tmux} = conv;
+const ler = () => conv.ler(sidebar);
+const naTela = () => conv.naTela(sidebar);
 
 function Conversa({conversa, sobCursor}) {
 	const cor = sobCursor ? 'cyan' : conversa.naTela ? undefined : 'gray';
@@ -126,11 +85,7 @@ function Sidebar() {
 		atualizar();
 	};
 
-	const abrir = id =>
-		agir(() => {
-			mostrar(id);
-			tmux('select-pane', '-t', id);
-		});
+	const abrir = id => agir(() => conv.abrir(sidebar, id));
 
 	// Só cabem algumas conversas: mostra a fatia em volta do cursor.
 	const cabem = Math.max(1, Math.floor((linhas - 5) / 3));
@@ -166,7 +121,7 @@ function Sidebar() {
 			if (input === 's' && alvo) {
 				// Fechada, o foco volta para a conversa que ficou na tela.
 				agir(() => {
-					fechar(alvo.id, conversas);
+					conv.fechar(sidebar, alvo.id);
 					tmux('select-pane', '-t', naTela());
 				});
 			}
@@ -177,12 +132,7 @@ function Sidebar() {
 		else if (key.downArrow || input === 'j') setCursor(conversas[Math.min(conversas.length - 1, i + 1)]?.id);
 		else if (key.return && sob) abrir(sob.id);
 		else if (input === 'n') {
-			agir(() => {
-				const id = criar();
-				mostrar(id);
-				tmux('select-pane', '-t', id);
-				setCursor(id);
-			});
+			agir(() => setCursor(conv.nova(sidebar)));
 		} else if (input === 'x' && sob) setConfirmar(sob.id);
 		else if (key.escape) agir(() => tmux('select-pane', '-t', naTela()));
 	});
@@ -190,7 +140,7 @@ function Sidebar() {
 	let rodape;
 	if (confirmar) rodape = [h(Text, {key: 1, color: 'yellow'}, `fechar conversa ${alvo?.n}?`), h(Text, {key: 2, dimColor: true}, 's sim · n não')];
 	else if (focado) rodape = [h(Text, {key: 1, dimColor: true}, '↑↓ enter  abrir'), h(Text, {key: 2, dimColor: true}, 'n nova · x fechar'), h(Text, {key: 3, dimColor: true}, 'esc  voltar')];
-	else rodape = [h(Text, {key: 1, dimColor: true}, 'ctrl+\\ n  nova'), h(Text, {key: 2, dimColor: true}, 'ctrl+\\ x  fechar')];
+	else rodape = [h(Text, {key: 1, dimColor: true}, 'ctrl+t  nova'), h(Text, {key: 2, dimColor: true}, 'ctrl+w  fechar')];
 
 	return h(
 		Box,
