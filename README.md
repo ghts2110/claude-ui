@@ -49,6 +49,13 @@ claude() { ~/claude-ui/bin/claude-ui "$@"; }
 
 Abra um terminal novo e digite `claude`. Argumentos são repassados ao Claude Code (`claude --continue`, `claude "corrige o teste"`).
 
+No sidebar, cada conversa é um `claude` separado; as que não estão na tela continuam rodando.
+
+- `Ctrl-\` alterna o foco entre o sidebar e a conversa (clicar no sidebar também funciona).
+- `↑`/`↓` ou `j`/`k` escolhem a conversa, `Enter` a traz para a tela.
+- `n` abre uma conversa nova, `x` fecha a selecionada (pede confirmação), `Esc` volta para a conversa.
+- `/exit` numa conversa a tira da lista; na última, fecha a interface.
+
 - `command claude` abre o Claude Code puro, sem a interface.
 - Rodar `claude` dentro da interface (ou de qualquer tmux) também abre o Claude Code puro.
 - Modos não interativos e subcomandos (`-p`, `--version`, `mcp`, `update`, ...) e uso em pipes/scripts rodam o Claude Code puro.

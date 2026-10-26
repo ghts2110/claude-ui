@@ -65,5 +65,5 @@ done
 # parser do tmux.
 exec tmux -L "${CLAUDE_UI_SOCKET:-claude-ui-$$}" -f "$ROOT/tmux.conf" \
 	new-session -s claude-ui \
-	-e CLAUDE_UI=1 -e CLAUDE_UI_ROOT="$ROOT" -e CLAUDE_UI_NODE="$NODE_BIN" -- \
-	"$ROOT/bin/main-pane" "$CLAUDE_BIN" "$@"
+	-e CLAUDE_UI=1 -e CLAUDE_UI_ROOT="$ROOT" -e CLAUDE_UI_NODE="$NODE_BIN" \
+	-e CLAUDE_UI_CLAUDE="$CLAUDE_BIN" -- "$ROOT/bin/main-pane" "$@"

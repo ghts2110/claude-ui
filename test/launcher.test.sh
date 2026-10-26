@@ -13,14 +13,16 @@ cat > "$FAKE/claude" <<FAKE
 #!/bin/sh
 printf '%s\n' "\$@" > "$TMP/args"
 echo "CLAUDE_UI=\$CLAUDE_UI" > "$TMP/env"
-sleep "\${FAKE_SLEEP:-0}"
+trap 'kill \$!; exit 0' TERM
+sleep "\${FAKE_SLEEP:-0}" & wait \$!
 FAKE
 chmod +x "$FAKE/claude"
 
 falhas=0
 ok() { echo "ok   - $1"; }
 falha() { echo "FAIL - $1"; falhas=$((falhas + 1)); }
-servidor_vivo() { tmux -L "$CLAUDE_UI_SOCKET" ls >/dev/null 2>&1; }
+T() { tmux -L "$CLAUDE_UI_SOCKET" "$@"; }
+servidor_vivo() { T ls >/dev/null 2>&1; }
 
 # Abre o launcher num pty de 120x30, em segundo plano.
 abrir() {
@@ -60,7 +62,7 @@ echo "$saida" | grep -q "tmux não encontrado" \
 
 # Layout e argumentos.
 abrir 30 --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S'
-panes=$(tmux -L "$CLAUDE_UI_SOCKET" list-panes -a -F '#{pane_left}:#{pane_width}' | tr '\n' ' ')
+panes=$(T list-panes -a -F '#{pane_left}:#{pane_width}' | tr '\n' ' ')
 [ "$panes" = "0:24 25:95 " ] && ok "sidebar à esquerda e claude no resto" \
 	|| falha "layout inesperado: $panes"
 esperado=$(printf '%s\n' --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S')
@@ -69,11 +71,42 @@ esperado=$(printf '%s\n' --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S'
 grep -q "CLAUDE_UI=1" "$TMP/env" && ok "claude roda marcado como dentro da interface" \
 	|| falha "CLAUDE_UI não chegou ao claude"
 
-tmux -L "$CLAUDE_UI_SOCKET" resize-window -x 180 -y 30
+T resize-window -x 180 -y 30
 sleep 1
-largura=$(tmux -L "$CLAUDE_UI_SOCKET" list-panes -a -F '#{pane_left}:#{pane_width}' | head -1)
+largura=$(T list-panes -a -F '#{pane_left}:#{pane_width}' | head -1)
 [ "$largura" = "0:24" ] && ok "sidebar mantém a largura ao redimensionar" \
 	|| falha "sidebar ao redimensionar: $largura"
+
+# Conversas pelo sidebar.
+sb=$(T show -v @sidebar)
+tecla() { T select-pane -t "$sb"; sleep 0.3; T send-keys -t "$sb" "$1"; sleep 1.5; }
+conversas() { T list-panes -s -t claude-ui -F '#{@conversa}' | grep . | sort -n | tr '\n' ' '; }
+na_tela() { T list-panes -t "$sb" -F '#{@conversa}' | grep .; }
+# Encerra o claude da conversa, como um /exit.
+sair() {
+	pane=$(T list-panes -s -t claude-ui -F '#{@conversa} #{pane_id}' | awk -v n="$1" '$1 == n { print $2 }')
+	pkill -P "$(T display -p -t "$pane" '#{pane_pid}')"
+	sleep 1
+}
+
+tecla n; tecla n
+[ "$(conversas)" = "1 2 3 " ] && [ "$(na_tela)" = 3 ] \
+	&& ok "n cria conversa na área principal" || falha "n: $(conversas)/$(na_tela)"
+tecla Up; tecla Enter
+[ "$(na_tela)" = 2 ] && [ "$(T display -p '#{@conversa}')" = 2 ] \
+	&& ok "enter traz a conversa para a tela" || falha "enter: $(na_tela)"
+tecla x; tecla s
+[ "$(conversas)" = "1 3 " ] && [ "$(na_tela)" = 3 ] \
+	&& ok "x fecha a conversa e outra assume" || falha "x: $(conversas)/$(na_tela)"
+sair 1
+[ "$(conversas)" = "3 " ] && [ "$(na_tela)" = 3 ] \
+	&& ok "conversa encerrada some da lista" || falha "exit: $(conversas)/$(na_tela)"
+tecla x; tecla s
+[ "$(conversas)" = "4 " ] && [ "$(na_tela)" = 4 ] \
+	&& ok "fechar a última abre uma nova" || falha "fechar a última: $(conversas)/$(na_tela)"
+tecla n; sair 5
+[ "$(conversas)" = "4 " ] && [ "$(na_tela)" = 4 ] \
+	&& ok "encerrar a conversa na tela traz outra" || falha "exit na tela: $(conversas)/$(na_tela)"
 
 # Fechar o terminal encerra tudo.
 kill -HUP "$PID"; wait "$PID" 2>/dev/null; sleep 1

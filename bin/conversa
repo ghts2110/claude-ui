@@ -1,0 +1,33 @@
+#!/bin/sh
+# Uma conversa: roda o claude no pane atual. Quando ele sai, outra conversa
+# assume a área principal; se era a última, a interface fecha.
+
+n=$(tmux show -qv @proxima)
+n=${n:-1}
+tmux set -q @proxima $((n + 1))
+tmux set -p -t "$TMUX_PANE" @conversa "$n"
+
+"$CLAUDE_UI_CLAUDE" "$@"
+status=$?
+
+# Erro ao abrir o claude: deixa a mensagem na tela antes de fechar.
+if [ $status -ne 0 ]; then
+	printf '\nclaude saiu com status %s. Pressione Enter para fechar.' "$status"
+	read -r _
+fi
+
+tmux set -pu -t "$TMUX_PANE" @conversa
+outra=$(tmux list-panes -s -F '#{@conversa} #{pane_id}' | awk '$2 { print }' |
+	sort -n | awk 'NR == 1 { print $2 }')
+if [ -z "$outra" ]; then
+	tmux kill-session
+	exit $status
+fi
+
+# Estava na tela: a próxima conversa ocupa o lugar.
+janela() { tmux display -p -t "$1" '#{window_id}'; }
+if [ "$(janela "$TMUX_PANE")" = "$(janela "$(tmux show -qv @sidebar)")" ]; then
+	tmux swap-pane -d -s "$outra" -t "$TMUX_PANE"
+	tmux select-pane -t "$outra"
+fi
+exit $status
