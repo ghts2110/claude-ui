@@ -27,34 +27,32 @@ Interface para o [Claude Code](https://claude.com/claude-code) no terminal: o `c
 - **Node + [Ink](https://github.com/vadimdemedes/ink)** desenha o sidebar.
 - Uma função no `~/.zshrc` troca o `claude` pelo launcher do projeto.
 
-## Requisitos
-
-- macOS ou Linux
-- [tmux](https://github.com/tmux/tmux) 3.x — `brew install tmux`
-- Node 20+
-- Claude Code instalado (`claude` no PATH)
-
 ## Instalação
+
+Precisa ter o [Claude Code](https://claude.com/claude-code) e o [Node 20+](https://nodejs.org) instalados. Depois, cole no terminal:
 
 ```sh
 git clone https://github.com/ghts2110/claude-ui.git ~/claude-ui
-cd ~/claude-ui && npm install
+~/claude-ui/install.sh
 ```
 
-Adicione ao `~/.zshrc` (ajuste o caminho se clonou em outro lugar):
+Abra um terminal novo e digite `claude`. Pronto.
 
-```sh
-claude() { ~/claude-ui/bin/claude-ui "$@"; }
-```
+O instalador instala o tmux (via Homebrew, se faltar), roda o `npm install` e adiciona ao seu `~/.zshrc` (ou `~/.bashrc`) a função que faz `claude` abrir a interface. Pode rodar de novo sem problema.
 
-Abra um terminal novo e digite `claude`. Argumentos são repassados ao Claude Code (`claude --continue`, `claude "corrige o teste"`).
+Para desfazer: `~/claude-ui/install.sh --remover`.
 
+## Uso
+
+- `claude` abre a interface; argumentos chegam ao Claude Code (`claude --continue`, `claude "corrige o teste"`).
 - `command claude` abre o Claude Code puro, sem a interface.
 - Rodar `claude` dentro da interface (ou de qualquer tmux) também abre o Claude Code puro.
 - Modos não interativos e subcomandos (`-p`, `--version`, `mcp`, `update`, ...) e uso em pipes/scripts rodam o Claude Code puro.
 - Sair do Claude Code ou fechar o terminal encerra a interface.
 - Cada terminal tem seu próprio servidor tmux, com a config do repo; o `~/.tmux.conf` não é lido.
 - O prefixo do tmux fica desligado para os atalhos do Claude Code (como `Ctrl-b`) continuarem funcionando. `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
+
+## Desenvolvimento
 
 Testes do launcher: `npm test`.
 
