@@ -49,10 +49,19 @@ claude() { ~/claude-ui/bin/claude-ui "$@"; }
 
 Abra um terminal novo e digite `claude`. Argumentos são repassados ao Claude Code (`claude --continue`, `claude "corrige o teste"`).
 
+No sidebar, cada conversa é um `claude` separado; as que não estão na tela continuam rodando.
+
+- `Ctrl-\` alterna o foco entre o sidebar e a conversa.
+- `↑`/`↓` ou `j`/`k` escolhem a conversa, `Enter` a traz para a tela. Com o mouse: clique no botão da conversa; a rodinha move a seleção.
+- `n` abre uma conversa nova, `x` fecha a selecionada (pede confirmação), `Esc` volta para a conversa.
+- De qualquer lugar: `Ctrl-T` abre uma conversa nova e `Ctrl-W` fecha a que está na tela (confirma com `s`). Dentro da interface, esses atalhos deixam de chegar ao Claude Code.
+- `/exit` numa conversa a tira da lista; na última, fecha a interface.
+- Argumentos do `claude` valem só para a primeira conversa; as novas abrem vazias.
+
 - `command claude` abre o Claude Code puro, sem a interface.
 - Rodar `claude` dentro da interface (ou de qualquer tmux) também abre o Claude Code puro.
 - Modos não interativos e subcomandos (`-p`, `--version`, `mcp`, `update`, ...) e uso em pipes/scripts rodam o Claude Code puro.
-- Sair do Claude Code ou fechar o terminal encerra a interface.
+- Sair da última conversa ou fechar o terminal encerra a interface.
 - Cada terminal tem seu próprio servidor tmux, com a config do repo; o `~/.tmux.conf` não é lido.
 - O prefixo do tmux fica desligado para os atalhos do Claude Code (como `Ctrl-b`) continuarem funcionando. `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
 
