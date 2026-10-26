@@ -34,9 +34,29 @@ Interface para o [Claude Code](https://claude.com/claude-code) no terminal: o `c
 - Node 20+
 - Claude Code instalado (`claude` no PATH)
 
-## Como rodar
+## Instalação
 
-_Em construção._
+```sh
+git clone https://github.com/ghts2110/claude-ui.git ~/claude-ui
+cd ~/claude-ui && npm install
+```
+
+Adicione ao `~/.zshrc` (ajuste o caminho se clonou em outro lugar):
+
+```sh
+claude() { ~/claude-ui/bin/claude-ui "$@"; }
+```
+
+Abra um terminal novo e digite `claude`. Argumentos são repassados ao Claude Code (`claude --continue`, `claude "corrige o teste"`).
+
+- `command claude` abre o Claude Code puro, sem a interface.
+- Rodar `claude` dentro da interface (ou de qualquer tmux) também abre o Claude Code puro.
+- Modos não interativos e subcomandos (`-p`, `--version`, `mcp`, `update`, ...) e uso em pipes/scripts rodam o Claude Code puro.
+- Sair do Claude Code ou fechar o terminal encerra a interface.
+- Cada terminal tem seu próprio servidor tmux, com a config do repo; o `~/.tmux.conf` não é lido.
+- O prefixo do tmux fica desligado para os atalhos do Claude Code (como `Ctrl-b`) continuarem funcionando. `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
+
+Testes do launcher: `npm test`.
 
 ## Roadmap
 

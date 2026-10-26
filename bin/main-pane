@@ -1,0 +1,24 @@
+#!/bin/sh
+# Roda dentro do pane principal: abre o sidebar à esquerda e depois o claude.
+# Quando o claude sai, a interface fecha junto.
+
+main=$TMUX_PANE
+sidebar=$(tmux split-window -hbd -l 24 -P -F '#{pane_id}' -- \
+	"$CLAUDE_UI_NODE" "$CLAUDE_UI_ROOT/sidebar/index.js")
+
+# Sidebar com largura fixa ao redimensionar a janela.
+tmux set-hook -w window-resized "resize-pane -t $sidebar -x 24"
+# O sidebar ainda não recebe teclas: um clique nele devolve o foco ao claude.
+tmux set-hook -p -t "$sidebar" pane-focus-in "select-pane -t $main"
+
+"$@"
+status=$?
+
+# Erro ao abrir o claude: deixa a mensagem na tela antes de fechar.
+if [ $status -ne 0 ]; then
+	printf '\nclaude saiu com status %s. Pressione Enter para fechar.' "$status"
+	read -r _
+fi
+
+tmux kill-session
+exit $status
