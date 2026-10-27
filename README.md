@@ -53,9 +53,9 @@ Abra um terminal novo (ou rode `source ~/.zshrc`) e digite `claude`.
 
 ![Interface recém-aberta: sidebar com uma conversa nova e o Claude Code ao lado](docs/inicio.png)
 
-- **Criar:** `Ctrl-T`, de qualquer lugar, abre uma conversa nova ao lado das outras.
+- **Criar:** `Ctrl-T`, de qualquer lugar, abre uma conversa nova e a traz para a tela.
 - **Alternar:** `Ctrl-\` leva o foco ao sidebar; escolha com `↑`/`↓` e `Enter` (ou clique). As que não estão na tela continuam rodando.
-- **Fechar:** `Ctrl-W` fecha a conversa da tela (confirma com `s`); `/exit` dentro dela também. Fechar a última encerra a interface.
+- **Fechar:** `Ctrl-W` fecha a conversa da tela (confirma com `s`) e põe a vizinha no lugar; na última, abre uma nova. `/exit` também fecha a conversa e, na última, encerra a interface.
 - **Ajuda:** com o sidebar focado, `?` lista todos os atalhos.
 
 ## Funcionalidades
@@ -99,17 +99,17 @@ Quando o logo do Claude Code (versão, modelo, plano e pasta) rola para fora da 
 | `Ctrl-W` | qualquer lugar | fecha a conversa da tela (confirma com `s`) |
 | `↑`/`↓`, `j`/`k` | sidebar | escolhe a conversa |
 | `g`/`G` | sidebar | vai ao início e ao fim |
-| `Enter`, clique | sidebar | traz a conversa para a tela |
+| `Enter`, clique | sidebar | traz a conversa para a tela (a rodinha do mouse move a seleção) |
 | `1`-`9` | sidebar | abre a conversa daquela posição |
 | `Tab` | sidebar | volta para a conversa anterior |
-| `p` | sidebar | próxima pendente: a que espera por você ou terminou sem ser vista |
+| `p` | sidebar | próxima pendente: a que passou a esperar por você ou terminou sem ser vista, depois as que continuam esperando |
 | `n` / `x` | sidebar | conversa nova / fecha a selecionada (pede confirmação) |
 | `h` | sidebar | esconde o sidebar |
 | `<` / `>` | sidebar | estreita / alarga o sidebar |
-| `?` | sidebar | mostra os atalhos |
+| `?` | sidebar | mostra os atalhos (`?`, `q` ou `Esc` fecham) |
 | `Esc` | sidebar | volta para a conversa |
 
-Fora `Ctrl-\`, `Ctrl-T` e `Ctrl-W`, os atalhos só valem com o sidebar focado, então os do Claude Code continuam chegando a ele. O prefixo do tmux fica desligado (`Ctrl-b` chega ao Claude Code) e `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
+Fora `Ctrl-\`, `Ctrl-T` e `Ctrl-W`, os atalhos só valem com o sidebar focado, então os do Claude Code continuam chegando a ele. Esses três deixam de chegar ao Claude Code dentro da interface (o `Ctrl-W` não apaga mais a palavra anterior no prompt). O prefixo do tmux fica desligado (`Ctrl-b` chega ao Claude Code) e `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
 
 ## Claude Code puro
 
@@ -129,10 +129,10 @@ Não sobra mais nada: o projeto não salva arquivos fora do repositório e cada 
 | Mensagem | Causa e solução |
 | --- | --- |
 | `claude-ui: tmux não encontrado. Instale com 'brew install tmux'` | tmux ausente ou fora do PATH. Instale (`brew install tmux`, `apt install tmux`) e abra um terminal novo. |
-| `claude-ui: Node não encontrado. Instale o Node 20+` | Node ausente ou fora do PATH. Com nvm, confira se ele é carregado no `~/.zshrc` antes da função `claude`. |
+| `claude-ui: Node não encontrado. Instale o Node 20+` | Node ausente ou fora do PATH. Confira `command -v node` num terminal novo; com nvm carregado sob demanda (lazy load), carregue-o no início do shell ou rode `nvm alias default 20`. |
 | `claude-ui: dependências faltando. Rode 'npm install' em ...` | Faltou o passo 2: rode `npm install` na pasta clonada. |
 | `claude-ui: Claude Code não encontrado no PATH.` | O binário `claude` não está no PATH. Instale o Claude Code e confira com `command -v claude`. |
-| `no such file or directory: .../bin/claude-ui` | O caminho na função do `~/.zshrc` não aponta para onde o repositório foi clonado. |
+| `no such file or directory: .../bin/claude-ui` (zsh) ou `.../bin/claude-ui: No such file or directory` (bash) | O caminho na função do `~/.zshrc` (ou `~/.bashrc`) não aponta para onde o repositório foi clonado. |
 | Conversa sem título e sem status | Título e status vêm de hooks do Claude Code passados com `--settings` (ver `sidebar/hooks.json`). Passar outro `--settings` ou desligar hooks nas suas configurações os desativa. |
 
 Enquanto não resolve, `command claude` abre o Claude Code puro.
@@ -141,7 +141,7 @@ Enquanto não resolve, `command claude` abre o Claude Code puro.
 
 - **tmux** cuida do layout e mantém cada conversa viva em seu próprio pane. Cada terminal tem seu próprio servidor tmux, com a config do repo; o `~/.tmux.conf` não é lido.
 - **Node + [Ink](https://github.com/vadimdemedes/ink)** desenha o sidebar.
-- Uma função no `~/.zshrc` troca o `claude` pelo launcher do projeto.
+- Uma função no `~/.zshrc` (ou `~/.bashrc`) troca o `claude` pelo launcher do projeto.
 
 Testes do launcher: `npm test`.
 
