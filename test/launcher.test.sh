@@ -24,6 +24,15 @@ sleep "\${FAKE_SLEEP:-0}" & wait \$!
 FAKE
 chmod +x "$FAKE/claude"
 
+# caffeinate falso: grava argumentos e espera o processo do -w sair.
+cat > "$FAKE/caffeinate" <<FAKE
+#!/bin/sh
+printf '%s\n' "\$@" > "$TMP/caffeinate"
+while kill -0 "\$3" 2>/dev/null; do sleep 0.2; done
+FAKE
+chmod +x "$FAKE/caffeinate"
+cafeina_viva() { pgrep -f "$FAKE/caffeinate" >/dev/null; }
+
 falhas=0
 ok() { echo "ok   - $1"; }
 falha() { echo "FAIL - $1"; falhas=$((falhas + 1)); }
@@ -76,6 +85,9 @@ esperado=$(printf '%s\n' --settings "$ROOT/sidebar/hooks.json" --model opus "ol�
 	|| falha "argumentos: $(cat "$TMP/args" | tr '\n' '|')"
 grep -q "CLAUDE_UI=1" "$TMP/env" && ok "claude roda marcado como dentro da interface" \
 	|| falha "CLAUDE_UI não chegou ao claude"
+[ "$(cat "$TMP/caffeinate" | tr '\n' ' ')" = "-i -w $(T list-clients -F '#{client_pid}') " ] && cafeina_viva \
+	&& ok "caffeinate segura o repouso enquanto o cliente do tmux vive" \
+	|| falha "caffeinate: $(cat "$TMP/caffeinate" 2>/dev/null | tr '\n' ' ')"
 
 # Cabeçalho fixo acima da conversa, copiando o logo do claude, só depois que
 # o logo original rola para fora (Enter ecoa linhas em branco no claude falso).
@@ -290,11 +302,19 @@ anel | grep -q "indisponível" && ok "janela de 5h reiniciada vira indisponível
 # Fechar o terminal encerra tudo.
 kill -HUP "$PID"; wait "$PID" 2>/dev/null; sleep 1
 servidor_vivo && falha "fechar o terminal encerra tudo" || ok "fechar o terminal encerra tudo"
+cafeina_viva && falha "fechar o terminal solta o caffeinate" || ok "fechar o terminal solta o caffeinate"
+
+# Cliente do tmux morto de repente (crash): o caffeinate não fica preso.
+abrir 90
+kill -KILL "$(T list-clients -F '#{client_pid}')"; sleep 1
+cafeina_viva && falha "crash solta o caffeinate" || ok "crash solta o caffeinate"
+T kill-server 2>/dev/null; wait "$PID" 2>/dev/null
 
 # Sair do claude fecha a interface.
 abrir 1
 sleep 1
 servidor_vivo && falha "sair do claude fecha a interface" || ok "sair do claude fecha a interface"
+cafeina_viva && falha "caffeinate sai com a interface" || ok "caffeinate sai com a interface"
 
 rm -r "$TMP"
 [ $falhas -eq 0 ]

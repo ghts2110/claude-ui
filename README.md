@@ -92,6 +92,10 @@ No rodapé do sidebar, um anel enche em laranja conforme a janela de 5h do plano
 
 `h` esconde o sidebar e a conversa ocupa o terminal inteiro; `Ctrl-\` o traz de volta. `<` e `>` estreitam e alargam o sidebar, e arrastar a borda com o mouse também vale. A largura se mantém ao redimensionar o terminal, até metade dele. A borda do pane com o foco fica em ciano.
 
+### Mac acordado
+
+No macOS, enquanto a interface estiver aberta, o Mac não entra em repouso por inatividade, então uma tarefa longa não para no meio. A tela pode apagar normalmente, e fechar a tampa continua pondo o Mac para dormir. Quando a sessão acaba, inclusive com o terminal fechado ou num crash, o Mac volta ao comportamento normal (é o `caffeinate` do sistema, preso ao processo do tmux).
+
 ## Atalhos
 
 ![Tela de ajuda do sidebar com todos os atalhos](docs/ajuda.png)
