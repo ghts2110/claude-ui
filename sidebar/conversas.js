@@ -101,6 +101,15 @@ export function abrir(sidebar, id) {
 	tmux('select-pane', '-t', id);
 }
 
+// A conversa de cima (-1) ou de baixo (+1) da que está na tela, dando a volta
+// nas pontas; com uma só, nenhuma.
+export function vizinha(sidebar, passo) {
+	const {conversas} = ler(sidebar);
+	const i = conversas.findIndex(c => c.naTela);
+	if (conversas.length < 2 || i < 0) return;
+	return conversas[(i + passo + conversas.length) % conversas.length].id;
+}
+
 export function nova(sidebar) {
 	const id = criar(sidebar);
 	abrir(sidebar, id);

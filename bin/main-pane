@@ -35,5 +35,10 @@ acao="$CLAUDE_UI_NODE $CLAUDE_UI_ROOT/sidebar/acao.js"
 tmux bind -n C-t run-shell -b "$acao nova $sidebar"
 tmux bind -n C-w confirm-before -b -c s -p "fechar a conversa da tela? (s/n)" \
 	"run-shell -b '$acao fechar $sidebar'"
+# Option-↑/↓ trazem a conversa de cima ou de baixo na lista, de qualquer pane.
+# O Terminal.app não repassa o Cmd, então o Cmd+Option da ideia original
+# fica só no Option. Sem -b: segurando a tecla, uma troca espera a anterior.
+tmux bind -n M-Up run-shell "$acao subir $sidebar"
+tmux bind -n M-Down run-shell "$acao descer $sidebar"
 
 exec "$CLAUDE_UI_ROOT/bin/conversa" "$@"
