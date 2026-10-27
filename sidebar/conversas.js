@@ -31,8 +31,9 @@ export function ler(sidebar) {
 			pasta,
 		}))
 		.sort((a, b) => a.n - b.n);
-	const focado = tmux('display', '-p', '-t', sidebar, '#{pane_active}') === '1';
-	return {conversas, focado};
+	// Junto, o uso do plano que a statusline guardou (ver sidebar/uso.js).
+	const [ativo, uso] = tmux('display', '-p', '-t', sidebar, '#{pane_active}\t#{@uso}').split('\t');
+	return {conversas, focado: ativo === '1', uso};
 }
 
 // O Claude Code põe no título do terminal o assunto da conversa, resumido

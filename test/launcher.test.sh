@@ -255,6 +255,38 @@ tecla Tab
 tecla 2
 [ "$(na_tela)" = "$(conversas | cut -d' ' -f2)" ] && ok "2 abre a segunda conversa" || falha "2: $(na_tela)"
 
+# Anel do uso do plano: a statusline guarda a % da janela de 5h em @uso e
+# repassa a statusline do usuário; o anel fica acima do rodapé (linhas 24-26
+# num pane de 30) e mostra a % com o mouse em cima ou depois de um clique.
+anel() { T capture-pane -p -t "$sb" | sed -n 24,26p; }
+anel | grep -q "indisponível" && falha "anel mostra a % sem o mouse" \
+	|| ok "anel não mostra a % sem o mouse"
+passar() { T send-keys -t "$sb" -l "$(printf '\033[<35;4;25M')"; sleep 1; }
+passar
+anel | grep -q "indisponível" && ok "sem dado de uso, o anel diz indisponível" || falha "sem uso: $(anel)"
+statusline() {
+	printf '%s' "$1" > "$TMP/statusline"
+	T run-shell "HOME='$TMP' '$(command -v node)' '$ROOT/sidebar/uso.js' < '$TMP/statusline'"
+	sleep 1.5
+}
+mkdir -p "$TMP/.claude"
+echo '{"statusLine": {"command": "echo minha statusline"}}' > "$TMP/.claude/settings.json"
+reinicia=$(($(date +%s) + 3600))
+limite() { printf '{"cwd":"%s","rate_limits":{"five_hour":{"used_percentage":%s,"resets_at":%s}}}' "$TMP" "$1" "$2"; }
+saida=$(statusline "$(limite 42.4 "$reinicia")")
+[ "$saida" = "minha statusline" ] && ok "statusline do usuário continua aparecendo" || falha "statusline: $saida"
+passar; anel | grep -q "42% usado" && ok "statusline guarda o uso e o anel mostra a %" || falha "uso: $(anel)"
+statusline "{\"cwd\":\"$TMP\"}" >/dev/null
+passar; anel | grep -q "42% usado" && ok "conversa sem dado não apaga o uso" || falha "uso apagado: $(anel)"
+statusline "$(limite 30 "$reinicia")" >/dev/null
+passar; anel | grep -q "42% usado" && ok "conversa parada não volta o uso para trás" || falha "uso antigo: $(anel)"
+T send-keys -t "$sb" -l "$(printf '\033[<35;12;25M')"; sleep 1
+anel | grep -q "%" && falha "% continua fora do anel" || ok "% some quando o mouse sai do anel"
+T send-keys -t "$sb" -l "$(printf '\033[<0;4;25M')"; sleep 1
+anel | grep -q "42% usado" && ok "clique no anel fixa a %" || falha "clique no anel: $(anel)"
+T set -q @uso "42 $(($(date +%s) - 1))"; sleep 1.5
+anel | grep -q "indisponível" && ok "janela de 5h reiniciada vira indisponível" || falha "reiniciada: $(anel)"
+
 # Fechar o terminal encerra tudo.
 kill -HUP "$PID"; wait "$PID" 2>/dev/null; sleep 1
 servidor_vivo && falha "fechar o terminal encerra tudo" || ok "fechar o terminal encerra tudo"
