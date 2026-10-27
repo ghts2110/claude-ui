@@ -258,6 +258,10 @@ hook "$pane" trabalhando '{}'
 T send-keys -K -c "$cliente" Escape; sleep 0.5
 [ "$(T show -pv -t "$pane" @status)" = pronto ] && ok "esc tira a conversa de trabalhando" \
 	|| falha "esc: $(T show -pv -t "$pane" @status)"
+hook "$pane" esperando '{}'
+T send-keys -K -c "$cliente" Escape; sleep 0.5
+[ "$(T show -pv -t "$pane" @status)" = pronto ] && ok "esc tira a conversa de esperando" \
+	|| falha "esc esperando: $(T show -pv -t "$pane" @status)"
 # /clear apaga título e status; o ';' final chega inteiro ao título.
 hook "$pane" limpar '{}'
 item "○ nova conversa" >/dev/null && ok "/clear volta ao título provisório" || falha "limpar: $(item conversa)"
@@ -280,11 +284,22 @@ item "○ nova conversa" >/dev/null && ok "assunto antigo continua ignorado com 
 outro=$(T list-panes -s -t claude-ui -F '#{pane_id} #{window_id} #{@conversa}' |
 	awk -v w="$(janela "$sb")" '$3 && $2 != w { print $1; exit }')
 n_outro=$(T show -pv -t "$outro" @conversa)
+# O bell que o tmux repassa ao terminal dispara o alert-bell.
+T set-hook -g alert-bell "run-shell 'echo #{window_id} >> $TMP/sinos'"
 hook "$outro" pronto '{}'
 [ "$(T show -pqv -t "$outro" @novo)" = 1 ] && T capture-pane -p -t "$sb" | head -1 | grep -q "✓1" \
 	&& ok "conversa que termina fora da tela fica como novidade" || falha "novo: $(T show -pqv -t "$outro" @novo)"
 hook "$pane" pronto '{}'
 [ -z "$(T show -pqv -t "$pane" @novo)" ] && ok "a da tela não vira novidade" || falha "novo na tela"
+sinos() { cat "$TMP/sinos" 2>/dev/null | tr '\n' ' '; }
+[ "$(sinos)" = "$(janela "$outro") $(janela "$pane") " ] \
+	&& ok "terminar apita no terminal, também fora da tela" || falha "sinos: $(sinos)"
+hook "$pane" pronto '{}'
+hook "$pane" trabalhando '{}'
+hook "$outro" esperando '{}'
+hook "$pane" pronto '{}'
+[ "$(sinos)" = "$(janela "$outro") $(janela "$pane") $(janela "$outro") $(janela "$pane") " ] \
+	&& ok "só a mudança para pronto ou esperando apita" || falha "sinos repetidos: $(sinos)"
 tecla p
 [ "$(na_tela)" = "$n_outro" ] && [ -z "$(T show -pqv -t "$outro" @novo)" ] \
 	&& ok "p abre a pendente e ela deixa de ser novidade" || falha "p: $(na_tela)"
