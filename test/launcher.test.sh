@@ -209,7 +209,7 @@ item "○ nova conversa" >/dev/null && ok "conversa sem mensagem tem título pro
 	|| falha "título provisório: $(T capture-pane -p -t "$sb")"
 hook "$pane" trabalhando '{"prompt":"corrige   o teste\nde login que está quebrado"}'
 hook "$pane" esperando '{"prompt":"outra coisa"}'
-[ "$(T show -pv -t "$pane" @status)" = esperando ] && item "● corrige o teste" >/dev/null \
+[ "$(T show -pv -t "$pane" @status)" = esperando ] && item "? corrige o" >/dev/null \
 	&& ok "hook marca status e título da primeira mensagem" \
 	|| falha "hook: $(T show -pv -t "$pane" @status) $(item corrige)"
 [ "$(T show -pv -t "$pane" @titulo)" = "corrige o teste de login que está quebrado" ] \
@@ -225,6 +225,35 @@ item "○ nova conversa" >/dev/null && ok "/clear volta ao título provisório" 
 hook "$pane" trabalhando '{"prompt":"fim;"}'
 [ "$(T show -pv -t "$pane" @titulo)" = "fim;" ] && ok "título termina com ;" \
 	|| falha "título com ;: $(T show -pv -t "$pane" @titulo)"
+[ "$(T show -pv -t "$pane" @desde)" -gt 0 ] 2>/dev/null && item "fim;" | grep -q "0:0" \
+	&& ok "status guarda desde quando e o sidebar mostra o tempo" || falha "desde: $(item 'fim;')"
+
+# O assunto que o claude põe no título do terminal vira o título; depois do
+# /clear, o antigo é ignorado.
+T select-pane -t "$pane" -T "✳ Corrige login"; sleep 1.5
+item "Corrige login" >/dev/null && ok "assunto do claude vira o título" || falha "assunto: $(T capture-pane -p -t "$sb")"
+hook "$pane" limpar '{}'
+item "○ nova conversa" >/dev/null && ok "/clear ignora o assunto antigo" || falha "assunto após /clear: $(item ○)"
+T select-pane -t "$pane" -T "⠐ Corrige login"; sleep 1.5
+item "○ nova conversa" >/dev/null && ok "assunto antigo continua ignorado com o spinner" || falha "spinner após /clear: $(item ○)"
+
+# Novidade fora da tela, p (pendente), Tab (anterior) e 1-9.
+outro=$(T list-panes -s -t claude-ui -F '#{pane_id} #{window_id} #{@conversa}' |
+	awk -v w="$(janela "$sb")" '$3 && $2 != w { print $1; exit }')
+n_outro=$(T show -pv -t "$outro" @conversa)
+hook "$outro" pronto '{}'
+[ "$(T show -pqv -t "$outro" @novo)" = 1 ] && T capture-pane -p -t "$sb" | head -1 | grep -q "✓1" \
+	&& ok "conversa que termina fora da tela fica como novidade" || falha "novo: $(T show -pqv -t "$outro" @novo)"
+hook "$pane" pronto '{}'
+[ -z "$(T show -pqv -t "$pane" @novo)" ] && ok "a da tela não vira novidade" || falha "novo na tela"
+tecla p
+[ "$(na_tela)" = "$n_outro" ] && [ -z "$(T show -pqv -t "$outro" @novo)" ] \
+	&& ok "p abre a pendente e ela deixa de ser novidade" || falha "p: $(na_tela)"
+n_pane=$(T show -pv -t "$pane" @conversa)
+tecla Tab
+[ "$(na_tela)" = "$n_pane" ] && ok "tab volta para a anterior" || falha "tab: $(na_tela)"
+tecla 2
+[ "$(na_tela)" = "$(conversas | cut -d' ' -f2)" ] && ok "2 abre a segunda conversa" || falha "2: $(na_tela)"
 
 # Fechar o terminal encerra tudo.
 kill -HUP "$PID"; wait "$PID" 2>/dev/null; sleep 1
