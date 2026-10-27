@@ -80,7 +80,7 @@ const vad = new sherpa.Vad({
 
 // O Whisper inventa frases em ruído e silêncio (vícios das legendas com que
 // foi treinado): essas nunca são o que foi dito.
-const inventadas = /amara\.org|legendas? (pela|por)|inscreva-se|obrigad[oa] por assistir|^\W*$/i;
+const inventadas = /amara\.org|\blegendas?\b|inscreva-se|obrigad[oa] por assistir|^\W*$/i;
 
 // Uma transcrição por vez, na ordem das falas.
 let fila = Promise.resolve();
@@ -178,8 +178,10 @@ function ouvir(dados) {
 	if (recebido - ultimaFala > silencio * taxa) encerrar('silencio');
 }
 
+// Algum gravador existia, mas nenhum mandou som: o microfone não abriu.
+let existia = false;
 function abrir(i = 0) {
-	if (i >= gravadores.length) return encerrar('gravador');
+	if (i >= gravadores.length) return encerrar(existia ? 'permissao' : 'gravador');
 	const [comando, ...args] = gravadores[i];
 	const proximo = spawn(comando, args, {stdio: ['ignore', 'pipe', 'ignore']});
 	gravador = proximo;
@@ -188,11 +190,18 @@ function abrir(i = 0) {
 		chegou = true;
 		ouvir(dados);
 	});
+	// Aberto mas mudo (o pedido de acesso do macOS pode prender o gravador):
+	// desiste dele.
+	setTimeout(() => chegou || proximo.kill(), 5000);
 	proximo.on('error', () => abrir(i + 1));
-	// Saiu sem mandar nada: o microfone não abriu (acesso negado ou sem
-	// microfone). Saiu depois: o microfone sumiu (ex: fone desconectado).
+	// Saiu sem mandar nada: o microfone não abriu por ele (acesso negado,
+	// sem microfone, ou no Linux o parec sem servidor do PulseAudio): tenta
+	// o próximo. Saiu depois: o microfone sumiu (ex: fone desconectado).
 	proximo.on('exit', () => {
-		if (gravador === proximo && !encerrando) encerrar(chegou ? undefined : 'permissao');
+		if (gravador !== proximo || encerrando) return;
+		if (chegou) return encerrar();
+		existia = true;
+		abrir(i + 1);
 	});
 }
 

@@ -33,7 +33,7 @@ export const comoResolver = {
 		: ['Sem gravador de áudio.', 'Instale o ffmpeg (brew install ffmpeg) e clique no microfone de novo.'],
 	permissao: linux
 		? ['Sem acesso ao microfone.', 'Confira se há um microfone conectado e se ele não está mudo no controle de som, e clique no microfone de novo.']
-		: ['Sem acesso ao microfone.', 'Libere o Terminal em Ajustes do Sistema > Privacidade e Segurança > Microfone, reabra o Terminal e clique no microfone de novo.'],
+		: ['Sem acesso ao microfone.', 'Libere o Terminal em Ajustes do Sistema > Privacidade e Segurança > Microfone, reabra o Terminal e clique no microfone de novo.', 'Se já está liberado, confira o volume de entrada em Ajustes do Sistema > Som > Entrada.'],
 };
 
 // Fases: desligado, baixando (o modelo, com a fração em `progresso`),
@@ -50,6 +50,15 @@ export class Ditado {
 		this.falando = false;
 		this.progresso = null;
 		this.ouvinte = null;
+		// Cada ligar conta uma vez: religado durante o download, só o último
+		// pedido abre o microfone quando ele acabar.
+		this.vez = 0;
+		// Frases ditas enquanto a conversa espera uma escolha (permissão,
+		// pergunta): lá, uma tecla solta escolheria uma opção. Ficam para
+		// quando ela voltar a aceitar texto.
+		this.guardadas = [];
+		// Ouvintes até esta vez não digitam mais: a mensagem já foi enviada.
+		this.descartados = 0;
 	}
 
 	mudar(campos, aviso) {
@@ -65,20 +74,23 @@ export class Ditado {
 	ligar() {
 		if (!suportaNatural) return this.mudar({}, 'suporte');
 		if (temModelo()) return this.ouvir();
+		const vez = ++this.vez;
 		this.mudar({fase: 'baixando', progresso: null});
 		baixar({nome, url, arquivos, extras: {'silero_vad.onnx': urlVad}, aoProgredir: progresso => {
 			if (this.fase === 'baixando') this.mudar({progresso});
 		}}).then(ok => {
 			// Desligado enquanto baixava: o download termina, mas não ouve.
-			if (this.fase !== 'baixando') return;
+			if (this.fase !== 'baixando' || vez !== this.vez) return;
 			if (ok) this.ouvir();
 			else this.mudar({fase: 'desligado'}, 'baixar');
 		});
 	}
 
 	ouvir() {
+		this.vez++;
 		this.mudar({fase: 'carregando', falando: false});
 		const processo = spawn(ouvinte[0], [...ouvinte.slice(1), pasta], {stdio: ['ignore', 'pipe', 'ignore']});
+		processo.vez = this.vez;
 		this.ouvinte = processo;
 		// Só o ouvinte atual muda o estado; um desligado ainda digita o que
 		// estava transcrevendo quando foi parado.
@@ -86,6 +98,9 @@ export class Ditado {
 		let primeira = true;
 		let resto = '';
 		let aviso;
+		// A frase vai para a conversa que estava na tela quando ela começou,
+		// mesmo que outra tenha entrado enquanto era transcrita.
+		let destino = this.alvo();
 		processo.stdout.on('data', dados => {
 			const linhas = (resto + dados).split('\n');
 			resto = linhas.pop();
@@ -97,11 +112,15 @@ export class Ditado {
 					continue;
 				}
 				if (evento.evento === 'texto') {
-					this.digitar(primeira ? evento.texto : ` ${evento.texto}`);
+					if (processo.vez <= this.descartados) continue;
+					this.digitar(destino, primeira ? evento.texto : ` ${evento.texto}`);
 					primeira = false;
 				} else if (!atual()) continue;
 				else if (evento.evento === 'ouvindo') this.mudar({fase: 'ouvindo'});
-				else if (evento.evento === 'voz') this.mudar({falando: evento.falando});
+				else if (evento.evento === 'voz') {
+					if (evento.falando) destino = this.alvo() ?? destino;
+					this.mudar({falando: evento.falando});
+				}
 				else aviso = evento.evento;
 			}
 		});
@@ -114,17 +133,38 @@ export class Ditado {
 		processo.on('error', () => fim(1));
 	}
 
-	digitar(texto) {
-		try {
-			const pane = this.alvo();
-			if (pane) tmux('send-keys', '-t', pane, '-l', '--', texto);
-		} catch {}
+	digitar(pane, texto) {
+		if (!pane) return;
+		this.guardadas.push({pane, texto});
+		this.descarregar();
 	}
 
-	// Para de ouvir na hora; o que já foi dito ainda é transcrito e digitado.
-	desligar() {
+	// Digita as frases guardadas das conversas que aceitam texto. Uma
+	// conversa rolada para trás (copy-mode do tmux) leria as teclas como
+	// comandos: volta ao fim antes.
+	descarregar() {
+		this.guardadas = this.guardadas.filter(({pane, texto}) => {
+			try {
+				const [status, modo] = tmux('display', '-p', '-t', pane, '#{@status}\t#{pane_in_mode}').split('\t');
+				if (status === 'esperando') return true;
+				if (modo === '1') tmux('send-keys', '-t', pane, '-X', 'cancel');
+				tmux('send-keys', '-t', pane, '-l', '--', texto);
+			} catch {}
+			return false;
+		});
+	}
+
+	// Para de ouvir na hora; o que já foi dito ainda é transcrito e digitado,
+	// a menos que a mensagem já tenha sido enviada (descartar).
+	desligar(descartar) {
 		const processo = this.ouvinte;
 		this.ouvinte = null;
+		if (descartar) {
+			// Inclusive o de um ditado já desligado que ainda transcrevia.
+			this.descartados = this.vez;
+			this.guardadas = [];
+		}
+		this.vez++;
 		processo?.kill();
 		if (this.fase !== 'desligado') this.mudar({fase: 'desligado', falando: false});
 	}
