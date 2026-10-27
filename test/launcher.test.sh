@@ -261,7 +261,8 @@ tecla 2
 anel() { T capture-pane -p -t "$sb" | sed -n 24,26p; }
 anel | grep -q "indisponível" && falha "anel mostra a % sem o mouse" \
 	|| ok "anel não mostra a % sem o mouse"
-T send-keys -t "$sb" -l "$(printf '\033[<35;4;25M')"; sleep 1
+passar() { T send-keys -t "$sb" -l "$(printf '\033[<35;4;25M')"; sleep 1; }
+passar
 anel | grep -q "indisponível" && ok "sem dado de uso, o anel diz indisponível" || falha "sem uso: $(anel)"
 statusline() {
 	printf '%s' "$1" > "$TMP/statusline"
@@ -270,11 +271,15 @@ statusline() {
 }
 mkdir -p "$TMP/.claude"
 echo '{"statusLine": {"command": "echo minha statusline"}}' > "$TMP/.claude/settings.json"
-saida=$(statusline "{\"cwd\":\"$TMP\",\"rate_limits\":{\"five_hour\":{\"used_percentage\":42.4,\"resets_at\":$(($(date +%s) + 3600))}}}")
+reinicia=$(($(date +%s) + 3600))
+limite() { printf '{"cwd":"%s","rate_limits":{"five_hour":{"used_percentage":%s,"resets_at":%s}}}' "$TMP" "$1" "$2"; }
+saida=$(statusline "$(limite 42.4 "$reinicia")")
 [ "$saida" = "minha statusline" ] && ok "statusline do usuário continua aparecendo" || falha "statusline: $saida"
-anel | grep -q "42% usado" && ok "statusline guarda o uso e o anel mostra a %" || falha "uso: $(anel)"
+passar; anel | grep -q "42% usado" && ok "statusline guarda o uso e o anel mostra a %" || falha "uso: $(anel)"
 statusline "{\"cwd\":\"$TMP\"}" >/dev/null
-anel | grep -q "42% usado" && ok "conversa sem dado não apaga o uso" || falha "uso apagado: $(anel)"
+passar; anel | grep -q "42% usado" && ok "conversa sem dado não apaga o uso" || falha "uso apagado: $(anel)"
+statusline "$(limite 30 "$reinicia")" >/dev/null
+passar; anel | grep -q "42% usado" && ok "conversa parada não volta o uso para trás" || falha "uso antigo: $(anel)"
 T send-keys -t "$sb" -l "$(printf '\033[<35;12;25M')"; sleep 1
 anel | grep -q "%" && falha "% continua fora do anel" || ok "% some quando o mouse sai do anel"
 T send-keys -t "$sb" -l "$(printf '\033[<0;4;25M')"; sleep 1
