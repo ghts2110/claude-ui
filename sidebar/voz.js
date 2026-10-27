@@ -7,25 +7,23 @@
 // em @transcript (ver sidebar/status.js). Só o que aparece depois de ligar é
 // lido: ao ligar ou trocar de conversa, a leitura começa do fim do arquivo.
 import {execFile, spawn} from 'node:child_process';
-import {closeSync, existsSync, mkdirSync, openSync, readdirSync, readSync, renameSync, rmSync, statSync} from 'node:fs';
+import {closeSync, existsSync, openSync, readSync, statSync} from 'node:fs';
 import {createRequire} from 'node:module';
-import {homedir} from 'node:os';
 import {dirname, join} from 'node:path';
-import {Readable} from 'node:stream';
-import {pipeline} from 'node:stream/promises';
 import {fileURLToPath} from 'node:url';
+import {baixar, cache, tem} from './baixar.js';
 import {tmux} from './conversas.js';
 
 const linux = process.platform !== 'darwin';
 
-// A voz natural é baixada na primeira vez que a leitura é ligada (~67 MB) e
-// fica no cache do usuário: a única coisa que o claude-ui guarda em disco.
-// O sherpa-onnx-node traz o binário pronto para macOS e Linux (x64 e arm64);
-// em outra plataforma, fica a voz do sistema.
+// A voz natural é baixada na primeira vez que a leitura é ligada (~67 MB),
+// para o cache do usuário (ver sidebar/baixar.js). O sherpa-onnx-node traz o
+// binário pronto para macOS e Linux (x64 e arm64); em outra plataforma, fica
+// a voz do sistema.
 const nome = 'vits-piper-pt_BR-faber-medium';
-const cache = join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'claude-ui');
 const pastaNatural = join(cache, nome);
 const modelo = 'pt_BR-faber-medium.onnx';
+const arquivos = [modelo, 'tokens.txt', 'espeak-ng-data'];
 const url = process.env.CLAUDE_UI_VOZ_URL || `https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/${nome}.tar.bz2`;
 
 // Sem carregar o binário no sidebar: só confere que o npm instalou o da
@@ -40,83 +38,10 @@ export const suportaNatural = (() => {
 })();
 
 const vozNatural = () => ({comando: process.execPath, args: [fileURLToPath(new URL('fala.js', import.meta.url)), pastaNatural], natural: true});
-export const temNatural = () => suportaNatural && [modelo, 'tokens.txt', 'espeak-ng-data'].every(f => existsSync(join(pastaNatural, f)));
+export const temNatural = () => suportaNatural && tem(pastaNatural, arquivos);
 
-const vivo = pid => {
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (erro) {
-		return erro.code === 'EPERM';
-	}
-};
-
-// Baixa e extrai a voz numa pasta temporária, renomeada só no fim: um
-// download interrompido nunca vira voz pela metade. Resolve com a voz, ou
-// nada se falhou (sem internet, por exemplo). Um download por vez; parado
-// por um minuto sem chegar nada, desiste.
-let baixando = null;
-export function baixarNatural() {
-	baixando ??= new Promise(resolve => {
-		const temp = `${pastaNatural}.baixando-${process.pid}`;
-		// Sobras de downloads de sidebars mortos (kill -9, crash).
-		try {
-			for (const pasta of readdirSync(cache)) {
-				const pid = Number(pasta.match(/\.baixando-(\d+)$/)?.[1]);
-				if (pid && pid !== process.pid && !vivo(pid)) rmSync(join(cache, pasta), {recursive: true, force: true});
-			}
-		} catch {}
-		const limpar = () => rmSync(temp, {recursive: true, force: true});
-		let pronto = false;
-		const fim = ok => {
-			if (pronto) return;
-			pronto = true;
-			if (ok) {
-				try {
-					// Uma voz incompleta no lugar (ex: arquivo apagado à mão)
-					// impediria o rename.
-					if (!temNatural()) rmSync(pastaNatural, {recursive: true, force: true});
-					renameSync(join(temp, nome), pastaNatural);
-				} catch {}
-			}
-			limpar();
-			process.off('exit', limpar);
-			baixando = null;
-			resolve(temNatural() ? vozNatural() : undefined);
-		};
-		try {
-			limpar();
-			mkdirSync(temp, {recursive: true});
-		} catch {
-			return fim(false);
-		}
-		process.on('exit', limpar);
-		const tar = spawn('tar', ['xjf', '-', '-C', temp], {stdio: ['pipe', 'ignore', 'ignore']});
-		tar.on('error', () => fim(false));
-		tar.on('exit', codigo => fim(codigo === 0 && existsSync(join(temp, nome, modelo))));
-		tar.stdin.on('error', () => {});
-		const parar = new AbortController();
-		let prazo;
-		const esperar = () => {
-			clearTimeout(prazo);
-			prazo = setTimeout(() => parar.abort(), 60 * 1000);
-		};
-		esperar();
-		fetch(url, {signal: parar.signal})
-			.then(resposta => {
-				if (!resposta.ok) throw new Error(String(resposta.status));
-				return pipeline(Readable.fromWeb(resposta.body), async function* (pedacos) {
-					for await (const pedaco of pedacos) {
-						esperar();
-						yield pedaco;
-					}
-				}, tar.stdin);
-			})
-			.catch(() => tar.kill())
-			.finally(() => clearTimeout(prazo));
-	});
-	return baixando;
-}
+// Resolve com a voz natural, ou nada se o download falhou.
+export const baixarNatural = () => baixar({nome, url, arquivos}).then(ok => (ok && suportaNatural ? vozNatural() : undefined));
 
 // Voz pt-br, como comando que lê o texto da entrada: a natural, se já
 // baixada; senão, a do sistema.
@@ -250,8 +175,9 @@ export class Leitor {
 
 	falar(texto) {
 		this.calar();
-		// Ligada só à espera da voz natural (sem voz do sistema): em silêncio.
-		if (!this.voz) return;
+		// Ligada só à espera da voz natural (sem voz do sistema), ou muda
+		// enquanto o microfone ouve (ver sidebar/ditado.js): em silêncio.
+		if (!this.voz || this.mudo) return;
 		const voz = this.voz;
 		const fala = spawn(voz.comando, voz.args, {stdio: ['pipe', 'ignore', 'ignore']});
 		this.fala = fala;
