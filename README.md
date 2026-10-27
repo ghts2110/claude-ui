@@ -92,7 +92,7 @@ No rodapé do sidebar, um anel enche em laranja conforme a janela de 5h do plano
 
 O alto-falante no canto de baixo do sidebar (ou `v`, com o sidebar focado) liga a leitura: cada texto que o Claude escreve na conversa da tela é falado assim que ele termina aquele trecho, sempre o mais recente; o que já estava escrito antes de ligar não é lido. Blocos de código, diffs, tabelas e saídas de comando ficam de fora. Um texto novo, uma mensagem sua, `Esc` ou `Ctrl-C` calam a fala; as conversas em segundo plano ficam em silêncio. Começa desligada.
 
-Usa a voz pt-br do próprio sistema (`say` no macOS, `espeak-ng` no Linux): funciona offline e não gasta tokens. Sem voz pt-br instalada, o sidebar mostra como instalar (no macOS, em Ajustes do Sistema > Acessibilidade > Conteúdo Falado > Voz do Sistema > Gerenciar Vozes).
+A voz é a [Piper pt_BR faber](https://huggingface.co/rhasspy/piper-voices/tree/main/pt/pt_BR/faber/medium), gerada no próprio computador pelo [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), que o `npm install` já traz para macOS e Linux (Intel e ARM): funciona offline, não gasta tokens e começa a falar meio segundo depois do texto. Na primeira vez que a leitura é ligada, a voz (~67 MB) é baixada para `~/.cache/claude-ui` (ou `$XDG_CACHE_HOME/claude-ui`), com um aviso no sidebar; apagar essa pasta a remove. Enquanto ela baixa, ou se o download falhar (sem internet, sem `bzip2` no Linux), a leitura usa a voz pt-br do sistema (`say` no macOS, `espeak-ng` no Linux) e tenta de novo na próxima vez que for ligada. Sem nenhuma das duas, o sidebar mostra como instalar a do sistema (no macOS, em Ajustes do Sistema > Acessibilidade > Conteúdo Falado > Voz do Sistema > Gerenciar Vozes).
 
 ### Sidebar ajustável
 
