@@ -9,6 +9,7 @@ else if (acao === 'fechar') {
 } else if (acao === 'ditar') {
 	// O sidebar liga ou desliga o ditado quando o contador muda (ver
 	// sidebar/index.js); o sinal o avisa sem esperar a próxima leitura.
-	tmux('set', '-q', '@ditar', String(Number(tmux('show', '-qv', '@ditar')) + 1));
+	// Somado pelo próprio tmux: dois Ctrl-Q seguidos não se perdem.
+	tmux('set', '-qF', '@ditar', '#{e|+:#{@ditar},1}');
 	process.kill(Number(tmux('display', '-p', '-t', sidebar, '#{pane_pid}')), 'SIGUSR2');
 }

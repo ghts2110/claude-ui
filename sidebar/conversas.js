@@ -35,9 +35,10 @@ export function ler(sidebar) {
 		}))
 		.sort((a, b) => a.n - b.n);
 	// Junto, o uso do plano que a statusline guardou (ver sidebar/uso.js) e
-	// quantas vezes o Ctrl-Q pediu o ditado (ver sidebar/acao.js).
-	const [ativo, uso, ditar] = tmux('display', '-p', '-t', sidebar, '#{pane_active}\t#{@uso}\t#{@ditar}').split('\t');
-	return {conversas, focado: ativo === '1', uso, ditar};
+	// quantas vezes o Ctrl-Q pediu o ditado (ver sidebar/acao.js) e quantas
+	// mensagens foram enviadas na conversa da tela (ver sidebar/status.js).
+	const [ativo, uso, ditar, enviadas] = tmux('display', '-p', '-t', sidebar, '#{pane_active}\t#{@uso}\t#{@ditar}\t#{@enviadas}').split('\t');
+	return {conversas, focado: ativo === '1', uso, ditar: Number(ditar) || 0, enviadas};
 }
 
 // "12 3" vira {mais: 12, menos: 3}; sem dado ou sem nada mudado, nada.

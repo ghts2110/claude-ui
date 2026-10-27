@@ -247,13 +247,30 @@ function Sidebar() {
 	const {conversas, focado} = estado;
 
 	// Ctrl-Q (tmux, ver sidebar/acao.js) conta os pedidos em @ditar: cada
-	// mudança liga ou desliga o ditado.
+	// um liga ou desliga o ditado, então só um número ímpar deles alterna.
 	const pedidos = useRef(estado.ditar);
 	useEffect(() => {
-		if (estado.ditar === pedidos.current) return;
+		const novos = estado.ditar - pedidos.current;
 		pedidos.current = estado.ditar;
-		alternarDitado();
+		if (novos % 2) alternarDitado();
 	}, [estado.ditar]);
+
+	// Mensagem enviada na conversa da tela: o ditado dela acabou. Para de
+	// ouvir e descarta o que ainda era transcrito, que cairia na próxima
+	// mensagem; a resposta do Claude volta a ser lida.
+	const enviadas = useRef(estado.enviadas);
+	useEffect(() => {
+		if (estado.enviadas === enviadas.current) return;
+		enviadas.current = estado.enviadas;
+		ditando.current.desligar(true);
+	}, [estado.enviadas]);
+
+	// A conversa da tela deixou de esperar uma escolha: digita o que foi
+	// dito enquanto ela esperava.
+	const statusNaTela = conversas.find(c => c.naTela)?.status;
+	useEffect(() => {
+		ditando.current.descarregar();
+	}, [statusNaTela]);
 	const uso = anel.ler(estado.uso);
 
 	// O spinner só anda enquanto alguma conversa trabalha.

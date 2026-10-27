@@ -59,6 +59,8 @@ try {
 	if (evento !== 'UserPromptSubmit' && evento !== 'SessionStart') throw 0;
 	if (transcript) tmux('set', '-p', '-t', pane, '--', '@transcript', transcript);
 	if (janela(pane) === janela(tmux('show', '-qv', '@sidebar'))) {
+		// Mensagem enviada: o sidebar desliga o ditado (ver sidebar/index.js).
+		if (evento === 'UserPromptSubmit') tmux('set', '-qF', '@enviadas', '#{e|+:#{@enviadas},1}');
 		const fala = tmux('show', '-qv', '@fala');
 		if (fala) process.kill(Number(fala));
 	}
