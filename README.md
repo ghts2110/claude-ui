@@ -10,7 +10,7 @@ Interface para o [Claude Code](https://claude.com/claude-code) no terminal: o `c
 │ ● corrige o… │                                        │
 │ ○ nova conv… │                                        │
 │              │                                        │
-│ [n] nova     │                                        │
+│ ? ajuda      │                                        │
 └──────────────┴────────────────────────────────────────┘
 ```
 
@@ -57,8 +57,11 @@ No sidebar, cada conversa é um `claude` separado; as que não estão na tela co
 
 - `Ctrl-\` alterna o foco entre o sidebar e a conversa.
 - `↑`/`↓` ou `j`/`k` escolhem a conversa, `Enter` a traz para a tela. Com o mouse: clique no botão da conversa; a rodinha move a seleção.
-- `n` abre uma conversa nova, `x` fecha a selecionada (pede confirmação), `Esc` volta para a conversa.
-- De qualquer lugar: `Ctrl-T` abre uma conversa nova e `Ctrl-W` fecha a que está na tela (confirma com `s`). Dentro da interface, esses atalhos deixam de chegar ao Claude Code.
+- `n` abre uma conversa nova, `x` fecha a selecionada (pede confirmação), `Esc` volta para a conversa. Da conversa, `Ctrl-\` `n` e `Ctrl-\` `x` criam uma nova e fecham a da tela.
+- `h` esconde o sidebar e a conversa ocupa o terminal inteiro; `Ctrl-\` o traz de volta.
+- `<` e `>` estreitam e alargam o sidebar; arrastar a borda com o mouse também vale. A largura se mantém ao redimensionar o terminal, até metade dele.
+- `?` mostra todos os atalhos.
+- Fora o `Ctrl-\`, os atalhos só valem com o sidebar focado, então os do Claude Code continuam chegando a ele (exceto `Ctrl-Z`, ver abaixo).
 - `/exit` numa conversa a tira da lista; na última, fecha a interface.
 - Argumentos do `claude` valem só para a primeira conversa; as novas abrem vazias.
 

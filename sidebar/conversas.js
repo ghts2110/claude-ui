@@ -1,5 +1,5 @@
-// Operações sobre as conversas, usadas pelo sidebar e pelos atalhos do tmux
-// (sidebar/acao.js). `sidebar` é o id do pane do sidebar.
+// Operações sobre as conversas e o sidebar, usadas por ele. `sidebar` é o id
+// do pane do sidebar.
 import {execFileSync} from 'node:child_process';
 
 const conversa = new URL('../bin/conversa', import.meta.url).pathname;
@@ -38,7 +38,7 @@ export function mostrar(sidebar, id) {
 	if (!atual || atual === id) return;
 	const [largura, altura] = tmux('display', '-p', '-t', atual, '#{pane_width} #{pane_height}').split(' ');
 	tmux('resize-window', '-t', id, '-x', largura, '-y', altura);
-	tmux('swap-pane', '-d', '-s', id, '-t', atual);
+	tmux('swap-pane', '-dZ', '-s', id, '-t', atual);
 }
 
 export function abrir(sidebar, id) {
@@ -61,4 +61,26 @@ export function fechar(sidebar, id) {
 		mostrar(sidebar, vizinha ? vizinha.id : criar(sidebar));
 	}
 	tmux('kill-pane', '-t', id);
+}
+
+// Esconder o sidebar é dar zoom na conversa da tela; o Ctrl-\\ (select-pane)
+// tira o zoom e o traz de volta.
+export const escondido = sidebar => tmux('display', '-p', '-t', sidebar, '#{window_zoomed_flag}') === '1';
+
+export function esconder(sidebar) {
+	const id = naTela(sidebar);
+	tmux('select-pane', '-t', id);
+	if (!escondido(sidebar)) tmux('resize-pane', '-Z', '-t', id);
+}
+
+// Largura escolhida fica em @largura e é reaplicada quando a janela muda de
+// tamanho (hook em bin/main-pane) ou o sidebar volta a aparecer, até metade
+// da janela.
+export function largura(sidebar, nova) {
+	const janela = Number(tmux('display', '-p', '-t', sidebar, '#{window_width}'));
+	const teto = Math.max(20, Math.floor(janela / 2));
+	if (nova !== undefined) tmux('set', '-q', '@largura', String(Math.min(Math.max(20, nova), teto)));
+	if (escondido(sidebar)) return;
+	const guardada = Number(tmux('show', '-qv', '@largura')) || 24;
+	tmux('resize-pane', '-t', sidebar, '-x', String(Math.min(guardada, teto)));
 }

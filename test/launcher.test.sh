@@ -61,7 +61,7 @@ echo "$saida" | grep -q "tmux não encontrado" \
 	&& ok "sem tmux mostra mensagem" || falha "sem tmux mostra mensagem: $saida"
 
 # Layout e argumentos.
-abrir 30 --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S'
+abrir 90 --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S'
 panes=$(T list-panes -a -F '#{pane_left}:#{pane_width}' | tr '\n' ' ')
 [ "$panes" = "0:24 25:95 " ] && ok "sidebar à esquerda e claude no resto" \
 	|| falha "layout inesperado: $panes"
@@ -114,17 +114,40 @@ tecla x; tecla s
 tecla n; sair 5
 [ "$(conversas)" = "4 " ] && [ "$(na_tela)" = 4 ] \
 	&& ok "encerrar a conversa na tela traz outra" || falha "exit na tela: $(conversas)/$(na_tela)"
-# Atalhos globais, como se digitados no terminal.
+# Atalhos como se digitados no terminal.
 cliente=$(T list-clients -F '#{client_name}')
 atalho() { T send-keys -K -c "$cliente" "$1"; sleep 1.5; }
-atalho C-t
-[ "$(conversas)" = "4 6 " ] && [ "$(na_tela)" = 6 ] && [ "$(T display -p '#{@conversa}')" = 6 ] \
-	&& ok "ctrl-t abre conversa nova" || falha "ctrl-t: $(conversas)/$(na_tela)"
-atalho C-w; atalho n
-[ "$(conversas)" = "4 6 " ] && ok "ctrl-w n não fecha" || falha "ctrl-w n: $(conversas)"
-atalho C-w; atalho s
-[ "$(conversas)" = "4 " ] && [ "$(na_tela)" = 4 ] && [ "$(T display -p '#{@conversa}')" = 4 ] \
-	&& ok "ctrl-w s fecha a conversa da tela" || falha "ctrl-w s: $(conversas)/$(na_tela)"
+! T list-keys -T root C-t >/dev/null 2>&1 && ! T list-keys -T root C-w >/dev/null 2>&1 \
+	&& ok "ctrl-t e ctrl-w chegam ao claude" || falha "ctrl-t/ctrl-w presos pelo tmux"
+zoom() { T display -p -t "$sb" '#{window_zoomed_flag}'; }
+largura() { T display -p -t "$sb" '#{pane_width}'; }
+tecla n; tecla h
+[ "$(zoom)" = 1 ] && [ "$(T display -p '#{pane_id}')" != "$sb" ] \
+	&& ok "h esconde o sidebar" || falha "h: zoom=$(zoom)"
+sair 6
+[ "$(zoom)" = 1 ] && [ "$(na_tela)" = 4 ] \
+	&& ok "sidebar continua escondido quando a conversa sai" || falha "escondido: zoom=$(zoom)/$(na_tela)"
+atalho 'C-\'
+[ "$(zoom)" = 0 ] && [ "$(T display -p '#{pane_id}')" = "$sb" ] \
+	&& ok "ctrl-\\ traz o sidebar de volta" || falha "ctrl-\\: zoom=$(zoom)"
+tecla '>'; tecla '>'
+T resize-window -x 150 -y 30; sleep 1
+[ "$(largura)" = 28 ] && ok "> alarga o sidebar e a largura se mantém" || falha "largura: $(largura)"
+tecla h; T resize-window -x 180 -y 30; sleep 1; atalho 'C-\'
+[ "$(largura)" = 28 ] && ok "largura volta com o sidebar" || falha "largura após esconder: $(largura)"
+tecla '<'
+[ "$(largura)" = 26 ] && ok "< estreita o sidebar" || falha "<: $(largura)"
+T resize-window -x 44 -y 30; sleep 1
+[ "$(largura)" = 22 ] && ok "sidebar vai até metade da janela" || falha "metade: $(largura)"
+T resize-window -x 180 -y 30; sleep 1
+[ "$(largura)" = 26 ] && ok "janela larga devolve a largura escolhida" || falha "devolve: $(largura)"
+T list-keys -T root MouseDragEnd1Pane >/dev/null 2>&1 && T list-keys -T root MouseDragEnd1Border >/dev/null 2>&1 \
+	&& ok "arrastar a borda guarda a largura" || falha "arrasto sem bind"
+tecla '?'
+T capture-pane -p -t "$sb" | grep -q "esconder" && ok "? mostra os atalhos" \
+	|| falha "ajuda: $(T capture-pane -p -t "$sb")"
+tecla Escape
+T capture-pane -p -t "$sb" | grep -q "Conversas" && ok "esc fecha a ajuda" || falha "fechar ajuda"
 tecla n
 [ "$(T display -p -t "$sb" '#{mouse_sgr_flag}')" = 1 ] && ok "sidebar recebe o mouse" \
 	|| falha "sidebar não pediu o mouse"
