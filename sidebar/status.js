@@ -5,11 +5,18 @@
 // Junto do status ficam desde quando ele vale (@desde, para o tempo no
 // sidebar) e, se mudou para pronto ou esperando fora da tela, @novo: a
 // conversa tem novidade até ser aberta (ver sidebar/conversas.js).
+// O transcript da conversa fica em @transcript, para a leitura em voz alta
+// (ver sidebar/voz.js); mandar uma mensagem na conversa da tela cala a fala.
 import {readFileSync} from 'node:fs';
 import {tmux} from './conversas.js';
 
 const pane = process.env.TMUX_PANE;
 const estado = process.argv[2];
+let entrada = {};
+try {
+	entrada = JSON.parse(readFileSync(0, 'utf8') || '{}');
+} catch {}
+const janela = alvo => tmux('display', '-p', '-t', alvo, '#{window_id}');
 try {
 	if (estado === 'limpar') {
 		for (const opcao of ['@status', '@desde', '@novo', '@titulo']) tmux('set', '-pu', '-t', pane, opcao);
@@ -22,7 +29,6 @@ try {
 		if (tmux('show', '-pqv', '-t', pane, '@status') !== estado) {
 			tmux('set', '-p', '-t', pane, '@status', estado);
 			tmux('set', '-p', '-t', pane, '@desde', String(Math.floor(Date.now() / 1000)));
-			const janela = alvo => tmux('display', '-p', '-t', alvo, '#{window_id}');
 			if (estado === 'trabalhando') tmux('set', '-pu', '-t', pane, '@novo');
 			else if (janela(pane) !== janela(tmux('show', '-qv', '@sidebar'))) {
 				tmux('set', '-p', '-t', pane, '@novo', '1');
@@ -33,10 +39,21 @@ try {
 	}
 } catch {}
 try {
-	const {prompt} = JSON.parse(readFileSync(0, 'utf8') || '{}');
+	const {prompt} = entrada;
 	// O tmux lê um argumento terminado em ';' como separador de comandos.
 	const titulo = prompt?.replace(/\s+/g, ' ').trim().slice(0, 200).replace(/;$/, '\\;');
 	if (titulo && !tmux('show', '-pqv', '-t', pane, '@titulo')) tmux('set', '-p', '-t', pane, '--', '@titulo', titulo);
+} catch {}
+try {
+	// Só uma mensagem nova ou o /clear (SessionStart) mudam o transcript e
+	// calam a fala; os outros hooks não pagam esse custo.
+	const {transcript_path: transcript, hook_event_name: evento} = entrada;
+	if (evento !== 'UserPromptSubmit' && evento !== 'SessionStart') throw 0;
+	if (transcript) tmux('set', '-p', '-t', pane, '--', '@transcript', transcript);
+	if (janela(pane) === janela(tmux('show', '-qv', '@sidebar'))) {
+		const fala = tmux('show', '-qv', '@fala');
+		if (fala) process.kill(Number(fala));
+	}
 } catch {}
 // Avisa o sidebar para não esperar a próxima leitura.
 try {

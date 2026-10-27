@@ -1,9 +1,10 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {render, Box, Text, useInput, useStdout} from 'ink';
 import {execFile} from 'node:child_process';
 import {basename} from 'node:path';
 import * as conv from './conversas.js';
 import * as anel from './anel.js';
+import * as voz from './voz.js';
 
 const h = React.createElement;
 const sidebar = process.env.TMUX_PANE;
@@ -110,6 +111,22 @@ function Anel({uso, detalhe}) {
 	);
 }
 
+// Alto-falante no canto de baixo do rodapé: desligado, ligado e falando
+// (as ondas pulsam). Sem emoji, de largura incerta no terminal.
+function AltoFalante({ligado, falando, quadro}) {
+	const texto = !ligado ? '◁×' : falando && quadro % 2 ? '◁))' : '◁)';
+	return h(Box, {width: 3, flexShrink: 0, alignSelf: 'flex-end'}, h(Text, {color: ligado ? destaque : apagado}, texto));
+}
+
+// Sem voz pt-br no sistema: como instalar, no lugar da lista.
+function SemVoz() {
+	return h(
+		Box,
+		{flexDirection: 'column', gap: 1},
+		voz.comoInstalar.map(linha => h(Text, {key: linha, color: apagado}, linha)),
+	);
+}
+
 const atalhos = [
 	['ctrl+\\', 'alternar'],
 	['↑↓ j k', 'escolher'],
@@ -122,6 +139,7 @@ const atalhos = [
 	['x ctrl+w', 'fechar'],
 	['h', 'esconder'],
 	['< >', 'largura'],
+	['v', 'ler em voz'],
 	['esc', 'voltar'],
 ];
 
@@ -142,6 +160,7 @@ function Ajuda() {
 			'A borda também',
 			'se arrasta com',
 			'o mouse.',
+			'Esc cala a voz.',
 		].map(linha => h(Text, {key: linha, color: apagado, wrap: 'truncate-end'}, linha))),
 	);
 }
@@ -161,6 +180,14 @@ function Sidebar() {
 	const [anelFixo, setAnelFixo] = useState(false);
 	// Conta os movimentos do mouse, para o prazo da % recomeçar a cada um.
 	const [quadroMouse, setQuadroMouse] = useState(0);
+	// Leitura em voz alta (ver sidebar/voz.js), desligada até um clique no
+	// alto-falante ou o v. Sem voz pt-br, o aviso de como instalar.
+	const leitor = useRef(null);
+	const buscando = useRef(false);
+	const [ligado, setLigado] = useState(false);
+	const [falando, setFalando] = useState(false);
+	const [semVoz, setSemVoz] = useState(false);
+	const [onda, setOnda] = useState(0);
 	// Diff de cada pasta (ver diff()), por caminho.
 	const [mudancas, setMudancas] = useState({});
 	const atualizar = () => {
@@ -185,8 +212,13 @@ function Sidebar() {
 		// Pede ao tmux os cliques, a rodinha e os movimentos do mouse (para
 		// passar sobre o anel), no formato SGR.
 		stdout.write('\x1b[?1003h\x1b[?1006h');
+		// Uma fala de um sidebar anterior não vale mais; morto pelo tmux, o
+		// sidebar ainda cala a sua.
+		voz.marcar();
+		for (const sinal of ['SIGHUP', 'SIGTERM']) process.on(sinal, () => process.exit());
 		process.on('exit', () => {
 			stdout.write('\x1b[?1003l\x1b[?1006l');
+			leitor.current?.calar();
 			try {
 				tmux('set-hook', '-gu', 'pane-focus-in');
 				tmux('set-hook', '-gu', 'pane-exited');
@@ -227,6 +259,46 @@ function Sidebar() {
 		};
 	}, [pastas]);
 
+	// Só a conversa na tela é lida; trocar de conversa cala a fala e passa a
+	// seguir o transcript da que entrou, a partir do que ela escrever depois.
+	const transcript = conversas.find(c => c.naTela)?.transcript;
+	useEffect(() => {
+		leitor.current?.seguir(transcript);
+	}, [ligado, transcript]);
+	useEffect(() => {
+		if (!ligado) return;
+		const intervalo = setInterval(() => leitor.current?.ler(), 250);
+		return () => clearInterval(intervalo);
+	}, [ligado]);
+	useEffect(() => {
+		if (!falando) return;
+		const intervalo = setInterval(() => setOnda(n => n + 1), 400);
+		return () => clearInterval(intervalo);
+	}, [falando]);
+
+	// Desligar cala na hora. Ligar procura a voz pt-br a cada vez: instalada
+	// depois do aviso, já vale no clique seguinte. O clique no alto-falante
+	// enquanto ele fala só cala, sem desligar (o Esc também interromperia o
+	// claude).
+	const alternarVoz = calarAntes => {
+		if (calarAntes && leitor.current?.fala) return leitor.current.calar();
+		if (buscando.current) return;
+		if (leitor.current) {
+			leitor.current.calar();
+			leitor.current = null;
+			setLigado(false);
+			return;
+		}
+		buscando.current = true;
+		voz.procurarVoz().then(achada => {
+			buscando.current = false;
+			if (!achada) return setSemVoz(true);
+			setSemVoz(false);
+			leitor.current = new voz.Leitor(achada, setFalando);
+			setLigado(true);
+		});
+	};
+
 	// O cursor segue a conversa pelo id; sem cursor, fica na que está na tela.
 	let i = conversas.findIndex(c => c.id === cursor);
 	if (i < 0) i = Math.max(0, conversas.findIndex(c => c.naTela));
@@ -238,6 +310,7 @@ function Sidebar() {
 	useEffect(() => {
 		setConfirmar(null);
 		setAjuda(false);
+		setSemVoz(false);
 		setSobreAnel(false);
 		if (focado) {
 			setCursor(null);
@@ -283,6 +356,8 @@ function Sidebar() {
 	const visiveis = conversas.slice(inicio, inicio + cabem);
 	const abaixo = conversas.length - inicio - visiveis.length;
 
+	// O alto-falante ocupa as últimas colunas da última linha.
+	const noAltoFalante = (linha, coluna) => linha === linhas - 1 && coluna >= colunas - 3;
 	// Clique (botão 0) abre a conversa; a rodinha (64/65) move o cursor. Os
 	// botões começam na linha 3 e têm 3 linhas cada. O anel fica logo acima
 	// das 3 linhas do rodapé, depois da margem de uma coluna; passar o mouse
@@ -296,9 +371,10 @@ function Sidebar() {
 			setQuadroMouse(n => n + 1);
 		}
 		else if (botao === 0 && noAnel(linha, coluna)) setAnelFixo(fixo => !fixo);
+		else if (botao === 0 && noAltoFalante(linha, coluna)) alternarVoz(true);
 		else if (botao === 64) setCursor(conversas[Math.max(0, i - 1)]?.id);
 		else if (botao === 65) setCursor(conversas[Math.min(conversas.length - 1, i + 1)]?.id);
-		else if (botao === 0 && linha >= 3 && !ajuda) {
+		else if (botao === 0 && linha >= 3 && !ajuda && !semVoz) {
 			const conversa = visiveis[Math.floor((linha - 3) / 3)];
 			if (conversa) {
 				setConfirmar(null);
@@ -319,6 +395,12 @@ function Sidebar() {
 
 		if (ajuda) {
 			if (input === '?' || input === 'q' || key.escape) setAjuda(false);
+			return;
+		}
+
+		if (semVoz) {
+			if (input === 'v') alternarVoz();
+			else if (input === 'q' || key.escape) setSemVoz(false);
 			return;
 		}
 
@@ -357,7 +439,8 @@ function Sidebar() {
 				const atual = Number(tmux('display', '-p', '-t', sidebar, '#{pane_width}'));
 				conv.largura(sidebar, atual + (input === '>' ? 2 : -2));
 			});
-		} else if (input === '?') setAjuda(true);
+		} else if (input === 'v') alternarVoz();
+		else if (input === '?') setAjuda(true);
 		else if (key.escape) agir(() => tmux('select-pane', '-t', naTela()));
 	});
 
@@ -374,6 +457,7 @@ function Sidebar() {
 	let rodape;
 	if (confirmar) rodape = [h(Text, {key: 1, color: aviso, wrap: 'truncate-end'}, `fechar ${alvo?.titulo}?`), dica(2, ['s', 'sim'], ['n', 'não'])];
 	else if (ajuda) rodape = [dica(1, ['? esc', 'fechar'])];
+	else if (semVoz) rodape = [dica(1, ['esc', 'fechar'])];
 	else if (focado) rodape = [dica(1, ['↑↓ enter', 'abrir']), dica(2, ['n', 'nova'], ['x', 'fechar']), dica(3, ['?', 'ajuda'], ['esc', 'sai'])];
 	else rodape = [dica(1, ['ctrl+t', 'nova']), dica(2, ['ctrl+w', 'fechar']), dica(3, ['ctrl+\\', 'sidebar'])];
 
@@ -399,15 +483,17 @@ function Sidebar() {
 		h(
 			Box,
 			{justifyContent: 'space-between', flexShrink: 0},
-			h(Box, {flexShrink: 1, overflow: 'hidden'}, h(Text, {bold: true, color: focado ? destaque : undefined, wrap: 'truncate-end'}, ajuda ? 'Atalhos' : 'Conversas')),
-			ajuda ? null : contagem,
+			h(Box, {flexShrink: 1, overflow: 'hidden'}, h(Text, {bold: true, color: focado ? destaque : undefined, wrap: 'truncate-end'}, ajuda ? 'Atalhos' : semVoz ? 'Leitura em voz alta' : 'Conversas')),
+			ajuda || semVoz ? null : contagem,
 		),
-		h(Box, {height: 1, flexShrink: 0}, !ajuda && inicio ? seta(1, `↑ ${inicio} acima`) : null),
+		h(Box, {height: 1, flexShrink: 0}, !ajuda && !semVoz && inicio ? seta(1, `↑ ${inicio} acima`) : null),
 		h(
 			Box,
 			{flexDirection: 'column', flexGrow: 1, overflow: 'hidden'},
 			ajuda
 				? h(Ajuda)
+				: semVoz
+				? h(SemVoz)
 				: [
 					...visiveis.map(c =>
 						h(Conversa, {key: c.id, conversa: c, sobCursor: focado && c === sob, quadro, mudancas: mudancas[c.pasta], largura: colunas - 2}),
@@ -416,7 +502,13 @@ function Sidebar() {
 				],
 		),
 		h(Anel, {uso, detalhe: sobreAnel || anelFixo}),
-		h(Box, {flexDirection: 'column', height: 3, flexShrink: 0, justifyContent: 'flex-end'}, rodape),
+		// O alto-falante divide só a última linha do rodapé com a dica.
+		h(
+			Box,
+			{flexDirection: 'column', height: 3, flexShrink: 0, justifyContent: 'flex-end'},
+			rodape.slice(0, -1),
+			h(Box, {key: 'ultima'}, h(Box, {flexGrow: 1, flexShrink: 1, overflow: 'hidden'}, rodape.at(-1)), h(AltoFalante, {ligado, falando, quadro: onda})),
+		),
 	);
 }
 

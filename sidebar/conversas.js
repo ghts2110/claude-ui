@@ -12,14 +12,14 @@ export const naTela = sidebar => tmux('list-panes', '-t', sidebar, '-F', '#{pane
 // Conversas são os panes marcados com @conversa (ver bin/conversa). A que
 // divide a janela com o sidebar é a que está na tela; as outras ficam
 // guardadas, cada uma na sua janela. Status, desde quando, se mudou fora da
-// tela e o título vêm dos hooks do claude (ver sidebar/status.js).
+// tela, o título e o transcript vêm dos hooks do claude (ver sidebar/status.js).
 export function ler(sidebar) {
 	const janela = tmux('display', '-p', '-t', sidebar, '#{window_id}');
-	const conversas = tmux('list-panes', '-s', '-t', sidebar, '-F', '#{pane_id}\t#{@conversa}\t#{window_id}\t#{@status}\t#{@desde}\t#{@novo}\t#{@titulo}\t#{pane_title}\t#{@topico_velho}\t#{pane_current_path}')
+	const conversas = tmux('list-panes', '-s', '-t', sidebar, '-F', '#{pane_id}\t#{@conversa}\t#{window_id}\t#{@status}\t#{@desde}\t#{@novo}\t#{@titulo}\t#{pane_title}\t#{@topico_velho}\t#{pane_current_path}\t#{@transcript}')
 		.split('\n')
 		.map(linha => linha.split('\t'))
 		.filter(([, n]) => n)
-		.map(([id, n, w, status, desde, novo, titulo, painel, velho, pasta]) => ({
+		.map(([id, n, w, status, desde, novo, titulo, painel, velho, pasta, transcript]) => ({
 			id,
 			n: Number(n),
 			naTela: w === janela,
@@ -29,6 +29,7 @@ export function ler(sidebar) {
 			// O spinner troca o ✳ enquanto trabalha: compara só o assunto.
 			titulo: (topico(painel) !== topico(velho) && topico(painel)) || titulo || 'nova conversa',
 			pasta,
+			transcript,
 		}))
 		.sort((a, b) => a.n - b.n);
 	// Junto, o uso do plano que a statusline guardou (ver sidebar/uso.js).

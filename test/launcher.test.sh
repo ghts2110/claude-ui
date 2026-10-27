@@ -36,6 +36,18 @@ FAKE
 chmod +x "$FAKE/caffeinate"
 cafeina_viva() { pgrep -f "$FAKE/caffeinate" >/dev/null; }
 
+# say falso: lista as vozes de $TMP/vozes; falando, grava o texto e fica
+# "falando" até ser morto.
+cat > "$FAKE/say" <<FAKE
+#!/bin/sh
+[ "\$2" = "?" ] && { cat "$TMP/vozes" 2>/dev/null; exit; }
+printf '%s\n' "\$*" > "$TMP/voz"
+cat > "$TMP/falado"
+trap 'exit 0' TERM
+sleep 30 & wait \$!
+FAKE
+chmod +x "$FAKE/say"
+
 falhas=0
 ok() { echo "ok   - $1"; }
 falha() { echo "FAIL - $1"; falhas=$((falhas + 1)); }
@@ -301,6 +313,58 @@ T send-keys -t "$sb" -l "$(printf '\033[<0;4;25M')"; sleep 1
 anel | grep -q "42% usado" && ok "clique no anel fixa a %" || falha "clique no anel: $(anel)"
 T set -q @uso "42 $(($(date +%s) - 1))"; sleep 1.5
 anel | grep -q "indisponível" && ok "janela de 5h reiniciada vira indisponível" || falha "reiniciada: $(anel)"
+
+# Leitura em voz alta: o alto-falante fica no canto de baixo do rodapé
+# (linha 29, nas 3 colunas antes da margem) e começa desligado.
+canto() { T capture-pane -p -t "$sb" | sed -n 29p; }
+clicar_voz() { T send-keys -t "$sb" -l "$(printf '\033[<0;%s;29M' "$(($(T display -p -t "$sb" '#{pane_width}') - 2))")"; sleep 1; }
+canto | grep -q "◁×" && ok "alto-falante começa desligado" || falha "alto-falante: $(canto)"
+# Sem voz pt-br no sistema: avisa como instalar e continua desligado.
+printf 'Alex                en_US    # Hello\nJoana               pt_PT    # Olá\n' > "$TMP/vozes"
+clicar_voz
+T capture-pane -p -t "$sb" | grep -q "Gerenciar" && canto | grep -q "◁×" \
+	&& ok "sem voz pt-br avisa como instalar" || falha "sem voz: $(T capture-pane -p -t "$sb")"
+printf 'Luciana             pt_BR    # Olá\nLuciana (Enhanced)  pt_BR    # Olá\n' >> "$TMP/vozes"
+clicar_voz
+canto | grep -q "◁)" && ! T capture-pane -p -t "$sb" | grep -q "Gerenciar" \
+	&& ok "clique no alto-falante liga a leitura" || falha "ligar: $(canto)"
+# O transcript chega pelos hooks; só o que ele escrever depois de ligar é lido.
+pane=$(T list-panes -t "$sb" -F '#{pane_id} #{@conversa}' | awk '$2 { print $1 }')
+transcript="$TMP/conversa.jsonl"
+resposta() { printf '{"type":"assistant","isSidechain":%s,"message":{"model":"m","content":[{"type":"text","text":"%s"}]}}\n' "$2" "$3" >> "$1"; sleep 1; }
+resposta "$transcript" false "resposta antiga"
+hook "$pane" trabalhando "{\"transcript_path\":\"$transcript\",\"hook_event_name\":\"UserPromptSubmit\"}"
+[ "$(T show -pv -t "$pane" @transcript)" = "$transcript" ] && ok "hook guarda o transcript da conversa" \
+	|| falha "transcript: $(T show -pqv -t "$pane" @transcript)"
+sleep 1
+[ ! -e "$TMP/falado" ] && ok "resposta de antes de ligar não é lida" || falha "leu o antigo: $(cat "$TMP/falado")"
+resposta "$transcript" false 'Pronto, **corrigi** o teste.\n\n```diff\n- velho\n+ novo\n```\n\nRode `npm test`.'
+[ "$(cat "$TMP/falado" 2>/dev/null)" = "Pronto, corrigi o teste. Rode npm test." ] \
+	&& grep -q "Luciana (Enhanced)" "$TMP/voz" && [ -n "$(T show -qv @fala)" ] \
+	&& ok "texto novo é falado com a voz pt-br, sem o código" || falha "falado: $(cat "$TMP/falado" 2>/dev/null) | $(cat "$TMP/voz" 2>/dev/null)"
+T send-keys -K -c "$cliente" Escape; sleep 1
+[ -z "$(T show -qv @fala)" ] && ! pgrep -f "$FAKE/say" >/dev/null && ok "esc cala a fala" || falha "esc não calou"
+resposta "$transcript" false "primeira"
+resposta "$transcript" false "segunda"
+[ "$(cat "$TMP/falado")" = "segunda." ] && [ "$(pgrep -f "$FAKE/say" | wc -l | tr -d ' ')" = 1 ] \
+	&& ok "resposta nova cala a anterior" || falha "sobrepôs: $(cat "$TMP/falado")"
+clicar_voz
+[ -z "$(T show -qv @fala)" ] && canto | grep -q "◁)" && ok "clique falando só cala, sem desligar" || falha "clique falando: $(canto)"
+resposta "$transcript" false "terceira"
+hook "$pane" trabalhando "{\"transcript_path\":\"$transcript\",\"hook_event_name\":\"UserPromptSubmit\"}"
+[ -z "$(T show -qv @fala)" ] && ok "mensagem nova cala a fala" || falha "prompt não calou"
+rm -f "$TMP/falado"
+resposta "$transcript" true "subagente"
+[ ! -e "$TMP/falado" ] && ok "subagente não é lido" || falha "subagente: $(cat "$TMP/falado")"
+# A conversa fora da tela fica em silêncio.
+outro=$(T list-panes -s -t claude-ui -F '#{pane_id} #{window_id} #{@conversa}' |
+	awk -v w="$(janela "$sb")" '$3 && $2 != w { print $1; exit }')
+hook "$outro" trabalhando "{\"transcript_path\":\"$TMP/outra.jsonl\",\"hook_event_name\":\"UserPromptSubmit\"}"
+resposta "$TMP/outra.jsonl" false "fora da tela"
+[ ! -e "$TMP/falado" ] && ok "conversa fora da tela não é lida" || falha "fora da tela: $(cat "$TMP/falado")"
+tecla v
+resposta "$transcript" false "desligado"
+canto | grep -q "◁×" && [ ! -e "$TMP/falado" ] && ok "v desliga a leitura" || falha "desligar: $(canto)"
 
 # Fechar o terminal encerra tudo.
 kill -HUP "$PID"; wait "$PID" 2>/dev/null; sleep 1
