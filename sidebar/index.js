@@ -166,12 +166,14 @@ function Sidebar() {
 	// Conta os movimentos do mouse, para o prazo da % recomeçar a cada um.
 	const [quadroMouse, setQuadroMouse] = useState(0);
 	// Leitura em voz alta (ver sidebar/voz.js), desligada até um clique no
-	// alto-falante ou o v. Sem voz pt-br, o aviso de como instalar.
+	// alto-falante ou o v. Sem voz pt-br, o aviso de como instalar. Enquanto
+	// a voz natural baixa, e se o download falhar, um aviso no rodapé.
 	const leitor = useRef(null);
 	const buscando = useRef(false);
 	const [ligado, setLigado] = useState(false);
 	const [falando, setFalando] = useState(false);
 	const [semVoz, setSemVoz] = useState(false);
+	const [avisoVoz, setAvisoVoz] = useState(null);
 	const [onda, setOnda] = useState(0);
 	const atualizar = () => {
 		try {
@@ -242,10 +244,34 @@ function Sidebar() {
 		return () => clearInterval(intervalo);
 	}, [falando]);
 
+	useEffect(() => {
+		if (avisoVoz !== 'falhou') return;
+		const prazo = setTimeout(() => setAvisoVoz(null), 10000);
+		return () => clearTimeout(prazo);
+	}, [avisoVoz]);
+
 	// Desligar cala na hora. Ligar procura a voz pt-br a cada vez: instalada
-	// depois do aviso, já vale no clique seguinte. O clique no alto-falante
-	// enquanto ele fala só cala, sem desligar (o Esc também interromperia o
-	// claude).
+	// depois do aviso, já vale no clique seguinte. Sem a voz natural, ela é
+	// baixada enquanto a do sistema lê; pronta, passa a ler no lugar dela.
+	// O clique no alto-falante enquanto ele fala só cala, sem desligar (o Esc
+	// também interromperia o claude).
+	// A voz natural falhou ao falar: passa para a do sistema e relê o texto.
+	// Sem ela, desliga e mostra como instalar.
+	const vozFalhou = texto => {
+		const atual = leitor.current;
+		voz.procurarSistema().then(sistema => {
+			if (leitor.current !== atual || !atual) return;
+			if (!sistema) {
+				leitor.current = null;
+				setLigado(false);
+				return setSemVoz(true);
+			}
+			atual.voz = sistema;
+			setAvisoVoz('falhou');
+			atual.falar(texto);
+		});
+	};
+
 	const alternarVoz = calarAntes => {
 		if (calarAntes && leitor.current?.fala) return leitor.current.calar();
 		if (buscando.current) return;
@@ -258,10 +284,24 @@ function Sidebar() {
 		buscando.current = true;
 		voz.procurarVoz().then(achada => {
 			buscando.current = false;
-			if (!achada) return setSemVoz(true);
+			const baixar = !achada?.natural && voz.suportaNatural;
+			if (!achada && !baixar) return setSemVoz(true);
 			setSemVoz(false);
-			leitor.current = new voz.Leitor(achada, setFalando);
+			const novo = new voz.Leitor(achada, setFalando, vozFalhou);
+			leitor.current = novo;
 			setLigado(true);
+			if (!baixar) return;
+			setAvisoVoz('baixando');
+			voz.baixarNatural().then(natural => {
+				if (natural && leitor.current) leitor.current.voz = natural;
+				setAvisoVoz(natural || !leitor.current ? null : 'falhou');
+				// Sem voz nenhuma: desliga e mostra como instalar a do sistema.
+				if (!natural && !achada && leitor.current === novo) {
+					leitor.current = null;
+					setLigado(false);
+					setSemVoz(true);
+				}
+			});
 		});
 	};
 
@@ -426,6 +466,13 @@ function Sidebar() {
 	else if (semVoz) rodape = [dica(1, ['esc', 'fechar'])];
 	else if (focado) rodape = [dica(1, ['↑↓ enter', 'abrir']), dica(2, ['n', 'nova'], ['x', 'fechar']), dica(3, ['?', 'ajuda'], ['esc', 'sai'])];
 	else rodape = [dica(1, ['ctrl+t', 'nova']), dica(2, ['ctrl+w', 'fechar']), dica(3, ['ctrl+\\', 'sidebar'])];
+	// O aviso da voz natural ocupa as primeiras linhas das dicas.
+	if (avisoVoz === 'baixando' && !confirmar && !ajuda && !semVoz) {
+		rodape[0] = h(Text, {key: 1, color: apagado, wrap: 'truncate-end'}, 'baixando voz natural…');
+	} else if (avisoVoz === 'falhou' && !confirmar && !ajuda && !semVoz) {
+		rodape[0] = h(Text, {key: 1, color: aviso, wrap: 'truncate-end'}, 'sem voz natural:');
+		rodape[1] = h(Text, {key: 2, color: apagado, wrap: 'truncate-end'}, 'lendo com a do sistema');
+	}
 
 	// No título, quantas esperam por você e quantas terminaram sem ser vistas
 	// (como o resumo de grupo do workmux), e o total.
