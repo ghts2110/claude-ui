@@ -30,9 +30,11 @@ tmux run-shell -t "$sidebar" -C "$aplicar"
 tmux bind -n MouseDragEnd1Border "$guardar ; $aplicar"
 tmux bind -n MouseDragEnd1Pane "$guardar ; $aplicar ; send -M"
 
-# Ctrl-T abre uma conversa nova e Ctrl-W fecha a da tela, de qualquer pane.
+# Ctrl-T abre uma conversa nova e Ctrl-W fecha a da tela, de qualquer pane;
+# Ctrl-Q liga e desliga o ditado por voz.
 acao="$CLAUDE_UI_NODE $CLAUDE_UI_ROOT/sidebar/acao.js"
 tmux bind -n C-t run-shell -b "$acao nova $sidebar"
+tmux bind -n C-q run-shell -b "$acao ditar $sidebar"
 tmux bind -n C-w confirm-before -b -c s -p "fechar a conversa da tela? (s/n)" \
 	"run-shell -b '$acao fechar $sidebar'"
 
