@@ -54,7 +54,7 @@ Abra um terminal novo (ou rode `source ~/.zshrc`) e digite `claude`.
 ![Interface recém-aberta: sidebar com uma conversa nova e o Claude Code ao lado](docs/inicio.png)
 
 - **Criar:** `Ctrl-T`, de qualquer lugar, abre uma conversa nova e a traz para a tela.
-- **Alternar:** `Ctrl-\` leva o foco ao sidebar; escolha com `↑`/`↓` e `Enter` (ou clique). As que não estão na tela continuam rodando.
+- **Alternar:** `Ctrl-\` leva o foco ao sidebar; escolha com `↑`/`↓` e `Enter` (ou clique). De qualquer lugar, `Option-↑`/`↓` trazem direto a conversa de cima ou de baixo. As que não estão na tela continuam rodando.
 - **Fechar:** `Ctrl-W` fecha a conversa da tela (confirma com `s`) e põe a vizinha no lugar; na última, abre uma nova. `/exit` também fecha a conversa e, na última, encerra a interface.
 - **Ajuda:** com o sidebar focado, `?` lista todos os atalhos.
 
@@ -101,6 +101,7 @@ No rodapé do sidebar, um anel enche em laranja conforme a janela de 5h do plano
 | `Ctrl-\` | qualquer lugar | alterna o foco entre o sidebar e a conversa |
 | `Ctrl-T` | qualquer lugar | conversa nova |
 | `Ctrl-W` | qualquer lugar | fecha a conversa da tela (confirma com `s`) |
+| `Option-↑`/`↓` | qualquer lugar | traz a conversa de cima / de baixo na lista (das pontas, dá a volta) |
 | `↑`/`↓`, `j`/`k` | sidebar | escolhe a conversa |
 | `g`/`G` | sidebar | vai ao início e ao fim |
 | `Enter`, clique | sidebar | traz a conversa para a tela (a rodinha do mouse move a seleção) |
@@ -113,7 +114,9 @@ No rodapé do sidebar, um anel enche em laranja conforme a janela de 5h do plano
 | `?` | sidebar | mostra os atalhos (`?`, `q` ou `Esc` fecham) |
 | `Esc` | sidebar | volta para a conversa |
 
-Fora `Ctrl-\`, `Ctrl-T` e `Ctrl-W`, os atalhos só valem com o sidebar focado, então os do Claude Code continuam chegando a ele. Esses três deixam de chegar ao Claude Code dentro da interface (o `Ctrl-W` não apaga mais a palavra anterior no prompt). O prefixo do tmux fica desligado (`Ctrl-b` chega ao Claude Code) e `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
+Fora `Ctrl-\`, `Ctrl-T`, `Ctrl-W` e `Option-↑`/`↓`, os atalhos só valem com o sidebar focado, então os do Claude Code continuam chegando a ele. Esses deixam de chegar ao Claude Code dentro da interface (o `Ctrl-W` não apaga mais a palavra anterior no prompt). O prefixo do tmux fica desligado (`Ctrl-b` chega ao Claude Code) e `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
+
+O Terminal.app não repassa o `Cmd` aos programas, por isso a troca usa `Option` em vez de `Cmd+Option`. Se `Option-↑`/`↓` não trocar de conversa, marque "Usar Option como tecla Meta" em Terminal › Ajustes › Perfis › Teclado.
 
 ## Claude Code puro
 
