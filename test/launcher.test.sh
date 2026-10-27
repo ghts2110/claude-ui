@@ -100,8 +100,8 @@ esperado=$(printf '%s\n' --settings "$ROOT/sidebar/hooks.json" --model opus "ol�
 	|| falha "argumentos: $(cat "$TMP/args" | tr '\n' '|')"
 grep -q "CLAUDE_UI=1" "$TMP/env" && ok "claude roda marcado como dentro da interface" \
 	|| falha "CLAUDE_UI não chegou ao claude"
-[ "$(cat "$TMP/caffeinate" | tr '\n' ' ')" = "-i -w $(T list-clients -F '#{client_pid}') " ] && cafeina_viva \
-	&& ok "caffeinate segura o repouso enquanto o cliente do tmux vive" \
+[ "$(cat "$TMP/caffeinate" | tr '\n' ' ')" = "-di -w $(T list-clients -F '#{client_pid}') " ] && cafeina_viva \
+	&& ok "caffeinate segura repouso e tela enquanto o cliente do tmux vive" \
 	|| falha "caffeinate: $(cat "$TMP/caffeinate" 2>/dev/null | tr '\n' ' ')"
 
 # Cabeçalho fixo acima da conversa, copiando o logo do claude, só depois que

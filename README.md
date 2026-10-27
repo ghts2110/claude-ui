@@ -100,7 +100,7 @@ Usa a voz pt-br do próprio sistema (`say` no macOS, `espeak-ng` no Linux): func
 
 ### Mac acordado
 
-No macOS, enquanto a interface estiver aberta, o Mac não entra em repouso por inatividade, então uma tarefa longa não para no meio. A tela pode apagar normalmente, e fechar a tampa continua pondo o Mac para dormir. Quando a sessão acaba, inclusive com o terminal fechado ou num crash, o Mac volta ao comportamento normal (é o `caffeinate` do sistema, preso ao processo do tmux).
+No macOS, enquanto a interface estiver aberta, o Mac não entra em repouso e a tela não apaga por inatividade, então dá para acompanhar uma tarefa longa sem a tarefa parar no meio. Fechar a tampa continua pondo o Mac para dormir. Quando a sessão acaba, inclusive com o terminal fechado ou num crash, tela e repouso voltam ao comportamento normal (é o `caffeinate` do sistema, preso ao processo do tmux).
 
 ## Atalhos
 
