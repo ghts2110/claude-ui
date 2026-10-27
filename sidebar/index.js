@@ -113,6 +113,7 @@ function Anel({uso, detalhe}) {
 const atalhos = [
 	['ctrl+\\', 'alternar'],
 	['↑↓ j k', 'escolher'],
+	['opt+↑↓', 'trocar'],
 	['g G', 'início, fim'],
 	['enter', 'abrir'],
 	['1-9', 'abrir a nº'],
@@ -255,6 +256,11 @@ function Sidebar() {
 		const prazo = setTimeout(() => setSobreAnel(false), 4000);
 		return () => clearTimeout(prazo);
 	}, [sobreAnel, quadroMouse]);
+
+	// Trocou a conversa da tela (Option-↑/↓, Ctrl-T, uma que saiu): o cursor
+	// volta para ela.
+	const tela = conversas.find(c => c.naTela)?.id;
+	useEffect(() => setCursor(null), [tela]);
 
 	// A conversa a fechar saiu sozinha enquanto esperava o "s": desiste.
 	const alvo = conversas.find(c => c.id === confirmar);
