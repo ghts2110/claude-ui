@@ -31,7 +31,7 @@ if [ "$(janela "$TMUX_PANE")" = "$(janela "$(tmux show -qv @sidebar)")" ]; then
 	tmux resize-window -t "$outra" \
 		-x "$(tmux display -p -t "$TMUX_PANE" '#{pane_width}')" \
 		-y "$(tmux display -p -t "$TMUX_PANE" '#{pane_height}')"
-	tmux swap-pane -d -s "$outra" -t "$TMUX_PANE"
-	tmux select-pane -t "$outra"
+	tmux swap-pane -dZ -s "$outra" -t "$TMUX_PANE"
+	tmux select-pane -Z -t "$outra"
 fi
 exit $status
