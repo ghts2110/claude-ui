@@ -37,9 +37,8 @@ const home = process.env.HOME;
 const pasta = caminho => (!caminho ? '' : caminho === home ? '~' : basename(caminho));
 
 // Cada conversa ocupa 3 linhas: título e tempo, pasta e linhas mudadas por
-// ela, separador. À
-// esquerda, uma faixa na cor do status, como os tiles do workmux; sob o
-// cursor, mais grossa e no tom de destaque.
+// ela, separador. À esquerda, uma faixa na cor do status, como os tiles do
+// workmux; sob o cursor, mais grossa e no tom de destaque.
 function Conversa({conversa, sobCursor, quadro, largura}) {
 	const {mudancas} = conversa;
 	const cor = cores[conversa.status];

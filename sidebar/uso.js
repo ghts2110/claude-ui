@@ -40,13 +40,24 @@ if (Number.isFinite(janela?.used_percentage) && Number.isFinite(janela?.resets_a
 }
 
 // Por conversa, não por pasta: duas conversas no mesmo repositório não
-// somam uma a outra. Só grava (e avisa o sidebar) quando muda.
+// somam uma a outra. O cost é o acumulado das edições do claude (Edit, Write),
+// e o /clear guarda em @linhas_base o total de até ali (ver sidebar/status.js):
+// a conversa nova conta a partir dele. Total menor que a base é um cost que
+// recomeçou do zero, e a base deixa de valer. Só grava (e avisa o sidebar)
+// quando muda.
 const {total_lines_added: mais, total_lines_removed: menos} = dados.cost ?? {};
-if (process.env.TMUX_PANE && Number.isFinite(mais) && Number.isFinite(menos)) {
+const pane = process.env.TMUX_PANE;
+if (pane && Number.isFinite(mais) && Number.isFinite(menos)) {
 	try {
-		const linhas = `${mais} ${menos}`;
-		if (tmux('show', '-pqv', '-t', process.env.TMUX_PANE, '@linhas') !== linhas) {
-			tmux('set', '-p', '-t', process.env.TMUX_PANE, '@linhas', linhas);
+		tmux('set', '-p', '-t', pane, '@linhas_total', `${mais} ${menos}`);
+		let [base, baseMenos] = tmux('show', '-pqv', '-t', pane, '@linhas_base').split(' ').map(Number);
+		if (!(mais >= base && menos >= baseMenos)) {
+			tmux('set', '-pu', '-t', pane, '@linhas_base');
+			base = baseMenos = 0;
+		}
+		const linhas = `${mais - base} ${menos - baseMenos}`;
+		if (tmux('show', '-pqv', '-t', pane, '@linhas') !== linhas) {
+			tmux('set', '-p', '-t', pane, '@linhas', linhas);
 			process.kill(Number(tmux('display', '-p', '-t', tmux('show', '-qv', '@sidebar'), '#{pane_pid}')), 'SIGUSR2');
 		}
 	} catch {}
