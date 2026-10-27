@@ -24,9 +24,12 @@ sleep "\${FAKE_SLEEP:-0}" & wait \$!
 FAKE
 chmod +x "$FAKE/claude"
 
-# caffeinate falso: grava argumentos e espera o processo do -w sair.
+# caffeinate falso: grava argumentos e espera o processo do -w sair. Ignora
+# SIGHUP: no teste o cliente do tmux lidera o pty e a morte dele mandaria HUP
+# ao caffeinate, o que não acontece com o launcher rodando num shell.
 cat > "$FAKE/caffeinate" <<FAKE
 #!/bin/sh
+trap '' HUP
 printf '%s\n' "\$@" > "$TMP/caffeinate"
 while kill -0 "\$3" 2>/dev/null; do sleep 0.2; done
 FAKE
