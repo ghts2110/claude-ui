@@ -255,6 +255,23 @@ function Sidebar() {
 	// baixada enquanto a do sistema lê; pronta, passa a ler no lugar dela.
 	// O clique no alto-falante enquanto ele fala só cala, sem desligar (o Esc
 	// também interromperia o claude).
+	// A voz natural falhou ao falar: passa para a do sistema e relê o texto.
+	// Sem ela, desliga e mostra como instalar.
+	const vozFalhou = texto => {
+		const atual = leitor.current;
+		voz.procurarSistema().then(sistema => {
+			if (leitor.current !== atual || !atual) return;
+			if (!sistema) {
+				leitor.current = null;
+				setLigado(false);
+				return setSemVoz(true);
+			}
+			atual.voz = sistema;
+			setAvisoVoz('falhou');
+			atual.falar(texto);
+		});
+	};
+
 	const alternarVoz = calarAntes => {
 		if (calarAntes && leitor.current?.fala) return leitor.current.calar();
 		if (buscando.current) return;
@@ -270,14 +287,14 @@ function Sidebar() {
 			const baixar = !achada?.natural && voz.suportaNatural;
 			if (!achada && !baixar) return setSemVoz(true);
 			setSemVoz(false);
-			const novo = new voz.Leitor(achada, setFalando);
+			const novo = new voz.Leitor(achada, setFalando, vozFalhou);
 			leitor.current = novo;
 			setLigado(true);
 			if (!baixar) return;
 			setAvisoVoz('baixando');
 			voz.baixarNatural().then(natural => {
-				setAvisoVoz(natural ? null : 'falhou');
 				if (natural && leitor.current) leitor.current.voz = natural;
+				setAvisoVoz(natural || !leitor.current ? null : 'falhou');
 				// Sem voz nenhuma: desliga e mostra como instalar a do sistema.
 				if (!natural && !achada && leitor.current === novo) {
 					leitor.current = null;
