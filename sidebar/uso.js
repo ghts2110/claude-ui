@@ -1,7 +1,9 @@
 // Statusline do Claude Code (ver sidebar/hooks.json): o JSON que ela recebe
 // traz o uso do plano (rate_limits, só para assinantes Pro/Max, depois da
 // primeira resposta). A % da janela de 5h e quando ela reinicia vão para @uso,
-// que o sidebar desenha como um anel (ver sidebar/anel.js).
+// que o sidebar desenha como um anel (ver sidebar/anel.js). Traz também as
+// linhas que esta conversa adicionou e removeu (cost), que vão para @linhas no
+// pane dela: o sidebar mostra cada conversa com as suas.
 // O --settings do claude-ui toma o lugar da statusline do usuário: se ele
 // tiver uma, ela roda com a mesma entrada e a saída dela é a que aparece.
 import {spawnSync} from 'node:child_process';
@@ -32,6 +34,30 @@ if (Number.isFinite(janela?.used_percentage) && Number.isFinite(janela?.resets_a
 		const novo = !(reinicia >= janela.resets_at) || (reinicia === janela.resets_at && janela.used_percentage > usado);
 		if (novo) {
 			tmux('set', '-q', '@uso', uso);
+			process.kill(Number(tmux('display', '-p', '-t', tmux('show', '-qv', '@sidebar'), '#{pane_pid}')), 'SIGUSR2');
+		}
+	} catch {}
+}
+
+// Por conversa, não por pasta: duas conversas no mesmo repositório não
+// somam uma a outra. O cost é o acumulado das edições do claude (Edit, Write),
+// e o /clear guarda em @linhas_base o total de até ali (ver sidebar/status.js):
+// a conversa nova conta a partir dele. Total menor que a base é um cost que
+// recomeçou do zero, e a base deixa de valer. Só grava (e avisa o sidebar)
+// quando muda.
+const {total_lines_added: mais, total_lines_removed: menos} = dados.cost ?? {};
+const pane = process.env.TMUX_PANE;
+if (pane && Number.isFinite(mais) && Number.isFinite(menos)) {
+	try {
+		tmux('set', '-p', '-t', pane, '@linhas_total', `${mais} ${menos}`);
+		let [base, baseMenos] = tmux('show', '-pqv', '-t', pane, '@linhas_base').split(' ').map(Number);
+		if (!(mais >= base && menos >= baseMenos)) {
+			tmux('set', '-pu', '-t', pane, '@linhas_base');
+			base = baseMenos = 0;
+		}
+		const linhas = `${mais - base} ${menos - baseMenos}`;
+		if (tmux('show', '-pqv', '-t', pane, '@linhas') !== linhas) {
+			tmux('set', '-p', '-t', pane, '@linhas', linhas);
 			process.kill(Number(tmux('display', '-p', '-t', tmux('show', '-qv', '@sidebar'), '#{pane_pid}')), 'SIGUSR2');
 		}
 	} catch {}

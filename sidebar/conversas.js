@@ -12,14 +12,15 @@ export const naTela = sidebar => tmux('list-panes', '-t', sidebar, '-F', '#{pane
 // Conversas são os panes marcados com @conversa (ver bin/conversa). A que
 // divide a janela com o sidebar é a que está na tela; as outras ficam
 // guardadas, cada uma na sua janela. Status, desde quando, se mudou fora da
-// tela, o título e o transcript vêm dos hooks do claude (ver sidebar/status.js).
+// tela, o título e o transcript vêm dos hooks do claude (ver sidebar/status.js);
+// as linhas que ela mudou, da statusline (ver sidebar/uso.js).
 export function ler(sidebar) {
 	const janela = tmux('display', '-p', '-t', sidebar, '#{window_id}');
-	const conversas = tmux('list-panes', '-s', '-t', sidebar, '-F', '#{pane_id}\t#{@conversa}\t#{window_id}\t#{@status}\t#{@desde}\t#{@novo}\t#{@titulo}\t#{pane_title}\t#{@topico_velho}\t#{pane_current_path}\t#{@transcript}')
+	const conversas = tmux('list-panes', '-s', '-t', sidebar, '-F', '#{pane_id}\t#{@conversa}\t#{window_id}\t#{@status}\t#{@desde}\t#{@novo}\t#{@titulo}\t#{pane_title}\t#{@topico_velho}\t#{pane_current_path}\t#{@transcript}\t#{@linhas}')
 		.split('\n')
 		.map(linha => linha.split('\t'))
 		.filter(([, n]) => n)
-		.map(([id, n, w, status, desde, novo, titulo, painel, velho, pasta, transcript]) => ({
+		.map(([id, n, w, status, desde, novo, titulo, painel, velho, pasta, transcript, linhas]) => ({
 			id,
 			n: Number(n),
 			naTela: w === janela,
@@ -30,11 +31,18 @@ export function ler(sidebar) {
 			titulo: (topico(painel) !== topico(velho) && topico(painel)) || titulo || 'nova conversa',
 			pasta,
 			transcript,
+			mudancas: mudancas(linhas),
 		}))
 		.sort((a, b) => a.n - b.n);
 	// Junto, o uso do plano que a statusline guardou (ver sidebar/uso.js).
 	const [ativo, uso] = tmux('display', '-p', '-t', sidebar, '#{pane_active}\t#{@uso}').split('\t');
 	return {conversas, focado: ativo === '1', uso};
+}
+
+// "12 3" vira {mais: 12, menos: 3}; sem dado ou sem nada mudado, nada.
+function mudancas(linhas) {
+	const [mais, menos] = (linhas ?? '').split(' ').map(Number);
+	if (mais || menos) return {mais: mais || 0, menos: menos || 0};
 }
 
 // O Claude Code põe no título do terminal o assunto da conversa, resumido

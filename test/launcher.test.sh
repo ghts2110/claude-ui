@@ -91,7 +91,7 @@ echo "$saida" | grep -q "tmux não encontrado" \
 	&& ok "sem tmux mostra mensagem" || falha "sem tmux mostra mensagem: $saida"
 
 # Layout e argumentos.
-abrir 90 --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S'
+abrir 150 --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S'
 panes=$(T list-panes -t "$(T show -v @sidebar)" -F '#{pane_left}:#{pane_width}' | tr '\n' ' ')
 [ "$panes" = "0:24 25:95 " ] && ok "sidebar à esquerda e claude no resto" \
 	|| falha "layout inesperado: $panes"
@@ -307,6 +307,27 @@ statusline "{\"cwd\":\"$TMP\"}" >/dev/null
 passar; anel | grep -q "42% usado" && ok "conversa sem dado não apaga o uso" || falha "uso apagado: $(anel)"
 statusline "$(limite 30 "$reinicia")" >/dev/null
 passar; anel | grep -q "42% usado" && ok "conversa parada não volta o uso para trás" || falha "uso antigo: $(anel)"
+# Linhas mudadas: por conversa, vindas da statusline de cada uma.
+linhas() { printf '{"cwd":"%s","cost":{"total_lines_added":%s,"total_lines_removed":%s}}' "$TMP" "$2" "$3" > "$TMP/statusline"
+	T run-shell "TMUX_PANE=$1 HOME='$TMP' '$(command -v node)' '$ROOT/sidebar/uso.js' < '$TMP/statusline'" >/dev/null; sleep 1.5; }
+diff_de() { T capture-pane -p -t "$sb" | grep -A1 "$1" | tail -1; }
+T select-pane -t "$pane" -T "✳ Esta"; T select-pane -t "$outro" -T "✳ Outra"; sleep 1.5
+linhas "$pane" 0 0
+diff_de Esta | grep -q "+" && falha "conversa sem edição mostra contador: $(diff_de Esta)" \
+	|| ok "conversa sem edição não mostra contador"
+linhas "$outro" 172 14
+diff_de Outra | grep -q "+172 -14" && ! diff_de Esta | grep -q "+" \
+	&& ok "cada conversa mostra só as linhas que ela mudou" || falha "linhas: $(diff_de Esta) / $(diff_de Outra)"
+linhas "$pane" 5 2
+diff_de Esta | grep -q "+5 -2" && diff_de Outra | grep -q "+172 -14" \
+	&& ok "duas conversas na mesma pasta, contadores separados" || falha "separados: $(diff_de Esta) / $(diff_de Outra)"
+linhas "$outro" 0 0
+! diff_de Outra | grep -q "+" && ok "contador some quando o cost volta a zero" || falha "zero: $(diff_de Outra)"
+hook "$pane" limpar '{}'
+hook "$pane" pronto '{"prompt":"Depois"}'; sleep 1
+diff_de Depois | grep -q "claude-ui" && ! diff_de Depois | grep -q "+" && ok "/clear zera o contador" || falha "clear: $(diff_de Depois)"
+linhas "$pane" 9 4
+diff_de Depois | grep -q "+4 -2" && ok "depois do /clear conta só o que veio depois" || falha "após clear: $(diff_de Depois)"
 T send-keys -t "$sb" -l "$(printf '\033[<35;12;25M')"; sleep 1
 anel | grep -q "%" && falha "% continua fora do anel" || ok "% some quando o mouse sai do anel"
 T send-keys -t "$sb" -l "$(printf '\033[<0;4;25M')"; sleep 1

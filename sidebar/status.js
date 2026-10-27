@@ -1,6 +1,6 @@
 // Hook do Claude Code (ver sidebar/hooks.json): `status.js <estado>` marca o
 // status da conversa no pane dela e, na primeira mensagem, o título; `limpar`
-// (após /clear) apaga os dois. Não escreve nada na saída: no UserPromptSubmit
+// (após /clear) apaga os dois e zera as linhas mudadas. Não escreve nada na saída: no UserPromptSubmit
 // ela viraria contexto do claude.
 // Junto do status ficam desde quando ele vale (@desde, para o tempo no
 // sidebar) e, se mudou para pronto ou esperando fora da tela, @novo: a
@@ -19,7 +19,10 @@ try {
 const janela = alvo => tmux('display', '-p', '-t', alvo, '#{window_id}');
 try {
 	if (estado === 'limpar') {
-		for (const opcao of ['@status', '@desde', '@novo', '@titulo']) tmux('set', '-pu', '-t', pane, opcao);
+		for (const opcao of ['@status', '@desde', '@novo', '@titulo', '@linhas']) tmux('set', '-pu', '-t', pane, opcao);
+		// As linhas da conversa antiga não passam para a nova (ver sidebar/uso.js).
+		const total = tmux('show', '-pqv', '-t', pane, '@linhas_total');
+		if (total) tmux('set', '-p', '-t', pane, '@linhas_base', total);
 		// O assunto da conversa antiga continua no título do terminal até o
 		// claude resumir a nova; o sidebar o ignora até lá.
 		tmux('set', '-p', '-t', pane, '--', '@topico_velho', tmux('display', '-p', '-t', pane, '#{pane_title}').replace(/;$/, '\\;'));
