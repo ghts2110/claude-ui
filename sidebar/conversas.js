@@ -11,18 +11,38 @@ export const naTela = sidebar => tmux('list-panes', '-t', sidebar, '-F', '#{pane
 
 // Conversas são os panes marcados com @conversa (ver bin/conversa). A que
 // divide a janela com o sidebar é a que está na tela; as outras ficam
-// guardadas, cada uma na sua janela. Status e título vêm dos hooks do claude
-// (ver sidebar/status.js).
+// guardadas, cada uma na sua janela. Status, desde quando, se mudou fora da
+// tela e o título vêm dos hooks do claude (ver sidebar/status.js).
 export function ler(sidebar) {
 	const janela = tmux('display', '-p', '-t', sidebar, '#{window_id}');
-	const conversas = tmux('list-panes', '-s', '-t', sidebar, '-F', '#{pane_id}\t#{@conversa}\t#{window_id}\t#{@status}\t#{@titulo}')
+	const conversas = tmux('list-panes', '-s', '-t', sidebar, '-F', '#{pane_id}\t#{@conversa}\t#{window_id}\t#{@status}\t#{@desde}\t#{@novo}\t#{@titulo}\t#{pane_title}\t#{@topico_velho}\t#{pane_current_path}')
 		.split('\n')
 		.map(linha => linha.split('\t'))
 		.filter(([, n]) => n)
-		.map(([id, n, w, status, titulo]) => ({id, n: Number(n), naTela: w === janela, status, titulo: titulo || 'nova conversa'}))
+		.map(([id, n, w, status, desde, novo, titulo, painel, velho, pasta]) => ({
+			id,
+			n: Number(n),
+			naTela: w === janela,
+			status,
+			desde: Number(desde) || undefined,
+			novo: novo === '1',
+			// O spinner troca o ✳ enquanto trabalha: compara só o assunto.
+			titulo: (topico(painel) !== topico(velho) && topico(painel)) || titulo || 'nova conversa',
+			pasta,
+		}))
 		.sort((a, b) => a.n - b.n);
 	const focado = tmux('display', '-p', '-t', sidebar, '#{pane_active}') === '1';
 	return {conversas, focado};
+}
+
+// O Claude Code põe no título do terminal o assunto da conversa, resumido
+// por ele ("✳ Corrige teste de login"; trabalhando, um spinner no lugar do
+// ✳). Como no workmux, é o melhor título; sem ele (antes da primeira
+// resposta ou com o título desligado), fica a primeira mensagem.
+export function topico(titulo) {
+	if (!/^[\u2800-\u28ff✳]/.test(titulo)) return;
+	const texto = titulo.replace(/^[\u2800-\u28ff✳\s]+/, '').trim();
+	if (texto && !texto.startsWith('Claude Code')) return texto;
 }
 
 export function criar(sidebar) {
@@ -32,14 +52,40 @@ export function criar(sidebar) {
 
 // Traz a conversa para a área principal; a que estava lá vai para a janela dela.
 // A janela guardada assume antes o tamanho da área principal, para o claude
-// não ser redimensionado a cada troca.
+// não ser redimensionado a cada troca. A que entra deixa de ser novidade; a
+// que sai fica em @anterior, para o Tab voltar a ela.
 export function mostrar(sidebar, id) {
 	const atual = naTela(sidebar);
 	if (!atual || atual === id) return;
 	const [largura, altura] = tmux('display', '-p', '-t', atual, '#{pane_width} #{pane_height}').split(' ');
 	tmux('resize-window', '-t', id, '-x', largura, '-y', altura);
 	tmux('swap-pane', '-dZ', '-s', id, '-t', atual);
+	tmux('set', '-pu', '-t', id, '@novo');
+	tmux('set', '-q', '@anterior', atual);
 	avisarCabecalho();
+}
+
+// A última conversa que esteve na tela, se ainda existir.
+export function anterior(sidebar) {
+	const id = tmux('show', '-qv', '@anterior');
+	return ler(sidebar).conversas.find(c => c.id === id && !c.naTela)?.id;
+}
+
+// A próxima que pede atenção, como o last-done do workmux: as que mudaram
+// fora da tela e ainda não foram vistas (esperando por você antes de
+// prontas), depois as que continuam esperando; em cada grupo, a que mudou há
+// mais tempo.
+export function pendente(sidebar) {
+	const fora = ler(sidebar).conversas.filter(c => !c.naTela);
+	const grupos = [
+		c => c.novo && c.status === 'esperando',
+		c => c.novo && c.status === 'pronto',
+		c => c.status === 'esperando',
+	];
+	for (const grupo of grupos) {
+		const achada = fora.filter(grupo).sort((a, b) => (a.desde ?? 0) - (b.desde ?? 0))[0];
+		if (achada) return achada.id;
+	}
 }
 
 // O cabeçalho (sidebar/cabecalho.js) se ajusta logo à conversa que entrou.
@@ -66,7 +112,10 @@ export function fechar(sidebar, id) {
 	const i = conversas.findIndex(c => c.id === id);
 	if (naTela(sidebar) === id) {
 		const vizinha = conversas[i + 1] ?? conversas[i - 1];
+		// A que sai vai morrer: o Tab continua voltando para a de antes dela.
+		const antes = tmux('show', '-qv', '@anterior');
 		mostrar(sidebar, vizinha ? vizinha.id : criar(sidebar));
+		tmux('set', '-q', '@anterior', antes);
 	}
 	tmux('kill-pane', '-t', id);
 }
