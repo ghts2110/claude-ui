@@ -68,7 +68,7 @@ A faixa e o ícone à esquerda mostram o status: `✓` verde quando o Claude ter
 
 ### Título, pasta e diff
 
-O título é o assunto que o Claude Code dá à conversa (o mesmo do título do terminal); antes disso, a primeira mensagem, e até lá "nova conversa". `/clear` volta ao provisório. Embaixo, a pasta da conversa e as linhas mudadas desde o último commit (`+12 -3`), se for um repositório git.
+O título é o assunto que o Claude Code dá à conversa (o mesmo do título do terminal); antes disso, a primeira mensagem, e até lá "nova conversa". `/clear` volta ao provisório. Embaixo, a pasta da conversa e as linhas que o Claude adicionou e removeu nela (`+12 -3`), contadas por conversa: duas conversas no mesmo repositório mostram cada uma as suas, e uma que não editou nada não mostra contador.
 
 ### Novidades fora da tela
 
