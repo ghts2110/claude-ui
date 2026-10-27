@@ -490,6 +490,22 @@ if [ -n "$NATURAL" ]; then
 	tecla m
 	mic | grep -q "◉×" && ! ouvinte_vivo && ok "m desliga o ditado" || falha "m: $(mic)"
 	tecla v
+	# Enviar a mensagem desliga o ditado.
+	tecla m
+	hook "$pane" trabalhando "{\"transcript_path\":\"$transcript\",\"hook_event_name\":\"UserPromptSubmit\"}"; sleep 1.5
+	mic | grep -q "◉×" && ! ouvinte_vivo && ok "mensagem enviada desliga o ditado" || falha "enviar: $(mic)"
+	# Conversa esperando uma escolha: o que foi dito espera ela aceitar texto.
+	ditos() { T capture-pane -p -J -S - -t "$pane" | grep -o "corrige o teste" | wc -l | tr -d ' '; }
+	antes=$(ditos)
+	T set -p -t "$pane" @status esperando
+	tecla m
+	[ "$(ditos)" = "$antes" ] && ok "conversa esperando escolha não recebe o ditado" || falha "digitou esperando: $antes -> $(ditos)"
+	T set -p -t "$pane" @status pronto; sleep 1.5
+	[ "$(ditos)" = "$((antes + 1))" ] && ok "depois da escolha, o ditado é digitado" || falha "guardado: $antes -> $(ditos)"
+	tecla m
+	# Dois Ctrl-Q seguidos se anulam.
+	T send-keys -K -c "$cliente" C-q; T send-keys -K -c "$cliente" C-q; sleep 2
+	mic | grep -q "◉×" && ! ouvinte_vivo && ok "dois ctrl+q seguidos se anulam" || falha "ctrl+q duplo: $(mic)"
 	echo permissao > "$TMP/ouvir"
 	clicar_mic
 	T capture-pane -p -t "$sb" | grep -q "Privacidade" && mic | grep -q "◉×" \
