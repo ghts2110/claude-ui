@@ -6,7 +6,16 @@ TMP=$(mktemp -d)
 FAKE="$TMP/bin"
 export CLAUDE_UI_SOCKET="claude-ui-test-$$"
 mkdir -p "$FAKE"
-trap 'tmux -L "$CLAUDE_UI_SOCKET" kill-server 2>/dev/null' EXIT
+
+# Voz natural: cache isolado e um servidor local no lugar do GitHub, sem a
+# voz até o teste dela pôr uma falsa em $TMP/www.
+export XDG_CACHE_HOME="$TMP/cache"
+PORTA=$((20000 + $$ % 10000))
+export CLAUDE_UI_VOZ_URL="http://127.0.0.1:$PORTA/voz.tar.bz2"
+mkdir -p "$TMP/www"
+(cd "$TMP/www" && exec python3 -m http.server "$PORTA" --bind 127.0.0.1) >/dev/null 2>&1 &
+HTTP=$!
+trap 'tmux -L "$CLAUDE_UI_SOCKET" kill-server 2>/dev/null; kill $HTTP 2>/dev/null' EXIT
 
 # claude falso: responde versão e plano (para o cabeçalho), grava argumentos e
 # ambiente, depois espera.
@@ -349,6 +358,8 @@ printf 'Luciana             pt_BR    # Olá\nLuciana (Enhanced)  pt_BR    # Olá
 clicar_voz
 canto | grep -q "◁)" && ! T capture-pane -p -t "$sb" | grep -q "Gerenciar" \
 	&& ok "clique no alto-falante liga a leitura" || falha "ligar: $(canto)"
+T capture-pane -p -t "$sb" | grep -q "lendo com a do sistema" && [ ! -e "$TMP/cache/claude-ui/vits-piper-pt_BR-faber-medium" ] \
+	&& ok "sem baixar a voz natural, avisa e usa a do sistema" || falha "aviso da voz natural: $(T capture-pane -p -t "$sb")"
 # O transcript chega pelos hooks; só o que ele escrever depois de ligar é lido.
 pane=$(T list-panes -t "$sb" -F '#{pane_id} #{@conversa}' | awk '$2 { print $1 }')
 transcript="$TMP/conversa.jsonl"
@@ -386,6 +397,17 @@ resposta "$TMP/outra.jsonl" false "fora da tela"
 tecla v
 resposta "$transcript" false "desligado"
 canto | grep -q "◁×" && [ ! -e "$TMP/falado" ] && ok "v desliga a leitura" || falha "desligar: $(canto)"
+# Com a voz natural no ar, ligar a baixa para o cache e ela passa a ler no
+# lugar da do sistema.
+mkdir -p "$TMP/pacote/vits-piper-pt_BR-faber-medium"
+: > "$TMP/pacote/vits-piper-pt_BR-faber-medium/pt_BR-faber-medium.onnx"
+tar cjf "$TMP/www/voz.tar.bz2" -C "$TMP/pacote" vits-piper-pt_BR-faber-medium
+tecla v; sleep 1
+[ -e "$TMP/cache/claude-ui/vits-piper-pt_BR-faber-medium/pt_BR-faber-medium.onnx" ] && ! ls "$TMP/cache/claude-ui" | grep -q baixando \
+	&& ! T capture-pane -p -t "$sb" | grep -q "voz natural" && ok "baixa a voz natural para o cache" || falha "download: $(ls "$TMP/cache/claude-ui" 2>&1)"
+resposta "$transcript" false "natural"
+[ ! -e "$TMP/falado" ] && ok "voz natural baixada lê no lugar da do sistema" || falha "leu com a do sistema: $(cat "$TMP/falado")"
+tecla v
 
 # Fechar o terminal encerra tudo.
 kill -HUP "$PID"; wait "$PID" 2>/dev/null; sleep 1
