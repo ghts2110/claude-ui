@@ -157,6 +157,9 @@ atalho C-w; atalho n
 atalho C-w; atalho s
 [ "$(conversas)" = "4 " ] && [ "$(na_tela)" = 4 ] && [ "$(T display -p '#{@conversa}')" = 4 ] \
 	&& ok "ctrl-w s fecha a conversa da tela" || falha "ctrl-w s: $(conversas)/$(na_tela)"
+atalho M-Up
+[ "$(conversas)" = "4 " ] && [ "$(na_tela)" = 4 ] && ok "option-↑ com uma conversa só não faz nada" \
+	|| falha "option-↑ sozinha: $(conversas)/$(na_tela)"
 zoom() { T display -p -t "$sb" '#{window_zoomed_flag}'; }
 largura() { T display -p -t "$sb" '#{pane_width}'; }
 tecla n; tecla h
@@ -254,6 +257,16 @@ tecla Tab
 [ "$(na_tela)" = "$n_pane" ] && ok "tab volta para a anterior" || falha "tab: $(na_tela)"
 tecla 2
 [ "$(na_tela)" = "$(conversas | cut -d' ' -f2)" ] && ok "2 abre a segunda conversa" || falha "2: $(na_tela)"
+atalho C-t
+primeira=$(conversas | cut -d' ' -f1); segunda=$(conversas | cut -d' ' -f2); terceira=$(conversas | cut -d' ' -f3)
+atalho M-Down
+[ "$(na_tela)" = "$primeira" ] && [ "$(T display -p '#{@conversa}')" = "$primeira" ] \
+	&& ok "option-↓ na última volta para a primeira, com o foco nela" || falha "option-↓: $(na_tela)"
+atalho M-Up
+[ "$(na_tela)" = "$terceira" ] && ok "option-↑ na primeira vai para a última" || falha "option-↑: $(na_tela)"
+T select-pane -t "$sb"; sleep 0.3; atalho M-Up
+[ "$(na_tela)" = "$segunda" ] && [ "$(T display -p '#{@conversa}')" = "$segunda" ] \
+	&& ok "option-↑ do sidebar traz a de cima e foca nela" || falha "option-↑ do sidebar: $(na_tela)"
 
 # Anel do uso do plano: a statusline guarda a % da janela de 5h em @uso e
 # repassa a statusline do usuário; o anel fica acima do rodapé (linhas 24-26
