@@ -258,6 +258,10 @@ hook "$pane" trabalhando '{}'
 T send-keys -K -c "$cliente" Escape; sleep 0.5
 [ "$(T show -pv -t "$pane" @status)" = pronto ] && ok "esc tira a conversa de trabalhando" \
 	|| falha "esc: $(T show -pv -t "$pane" @status)"
+hook "$pane" esperando '{}'
+T send-keys -K -c "$cliente" Escape; sleep 0.5
+[ "$(T show -pv -t "$pane" @status)" = pronto ] && ok "esc tira a conversa de esperando" \
+	|| falha "esc esperando: $(T show -pv -t "$pane" @status)"
 # /clear apaga título e status; o ';' final chega inteiro ao título.
 hook "$pane" limpar '{}'
 item "○ nova conversa" >/dev/null && ok "/clear volta ao título provisório" || falha "limpar: $(item conversa)"
