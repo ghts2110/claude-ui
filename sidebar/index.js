@@ -1,6 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {render, Box, Text, useInput, useStdout} from 'ink';
-import {execFile} from 'node:child_process';
 import {basename} from 'node:path';
 import * as conv from './conversas.js';
 import * as anel from './anel.js';
@@ -37,25 +36,12 @@ function tempo(desde) {
 const home = process.env.HOME;
 const pasta = caminho => (!caminho ? '' : caminho === home ? '~' : basename(caminho));
 
-// Linhas mudadas desde o último commit na pasta da conversa (git diff HEAD),
-// como os números do workmux. Sem git ou sem mudança, nada.
-function diff(caminho) {
-	return new Promise(resolve => {
-		// Sem travar o índice (um git add do claude falharia com index.lock) nem
-		// rodar diff externo ou textconv do usuário, como no workmux.
-		execFile('git', ['--no-optional-locks', '-C', caminho, 'diff', '--no-ext-diff', '--no-textconv', '--shortstat', 'HEAD'], {timeout: 3000}, (erro, saida) => {
-			if (erro) return resolve();
-			const mais = Number(saida.match(/(\d+) insert/)?.[1] ?? 0);
-			const menos = Number(saida.match(/(\d+) delet/)?.[1] ?? 0);
-			resolve(mais || menos ? {mais, menos} : undefined);
-		});
-	});
-}
-
-// Cada conversa ocupa 3 linhas: título e tempo, pasta e diff, separador. À
+// Cada conversa ocupa 3 linhas: título e tempo, pasta e linhas mudadas por
+// ela, separador. À
 // esquerda, uma faixa na cor do status, como os tiles do workmux; sob o
 // cursor, mais grossa e no tom de destaque.
-function Conversa({conversa, sobCursor, quadro, mudancas, largura}) {
+function Conversa({conversa, sobCursor, quadro, largura}) {
+	const {mudancas} = conversa;
 	const cor = cores[conversa.status];
 	const icone = conversa.status === 'trabalhando' ? spinner[quadro % spinner.length] : icones[conversa.status] ?? '○';
 	// Na tela ou com novidade (mudou fora da tela e não foi vista): em
@@ -188,8 +174,6 @@ function Sidebar() {
 	const [falando, setFalando] = useState(false);
 	const [semVoz, setSemVoz] = useState(false);
 	const [onda, setOnda] = useState(0);
-	// Diff de cada pasta (ver diff()), por caminho.
-	const [mudancas, setMudancas] = useState({});
 	const atualizar = () => {
 		try {
 			setEstado(ler());
@@ -241,23 +225,6 @@ function Sidebar() {
 		const intervalo = setInterval(() => setQuadro(q => q + 1), 250);
 		return () => clearInterval(intervalo);
 	}, [trabalhando]);
-
-	// O git é relido a cada 5s, fora do ciclo de 1s da lista.
-	const pastas = [...new Set(conversas.map(c => c.pasta).filter(Boolean))].join('\n');
-	useEffect(() => {
-		let vivo = true;
-		const ler = async () => {
-			const lista = pastas.split('\n').filter(Boolean);
-			const lidas = await Promise.all(lista.map(diff));
-			if (vivo) setMudancas(Object.fromEntries(lista.map((p, i) => [p, lidas[i]])));
-		};
-		ler();
-		const intervalo = setInterval(ler, 5000);
-		return () => {
-			vivo = false;
-			clearInterval(intervalo);
-		};
-	}, [pastas]);
 
 	// Só a conversa na tela é lida; trocar de conversa cala a fala e passa a
 	// seguir o transcript da que entrou, a partir do que ela escrever depois.
@@ -496,7 +463,7 @@ function Sidebar() {
 				? h(SemVoz)
 				: [
 					...visiveis.map(c =>
-						h(Conversa, {key: c.id, conversa: c, sobCursor: focado && c === sob, quadro, mudancas: mudancas[c.pasta], largura: colunas - 2}),
+						h(Conversa, {key: c.id, conversa: c, sobCursor: focado && c === sob, quadro, largura: colunas - 2}),
 					),
 					abaixo ? seta('abaixo', `↓ ${abaixo} abaixo`) : null,
 				],
