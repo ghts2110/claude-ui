@@ -8,9 +8,15 @@ export CLAUDE_UI_SOCKET="claude-ui-test-$$"
 mkdir -p "$FAKE"
 trap 'tmux -L "$CLAUDE_UI_SOCKET" kill-server 2>/dev/null' EXIT
 
-# claude falso: grava argumentos e ambiente, depois espera.
+# claude falso: responde versão e plano (para o cabeçalho), grava argumentos e
+# ambiente, depois espera.
 cat > "$FAKE/claude" <<FAKE
 #!/bin/sh
+case "\$1" in
+	--version) echo '9.9.9 (Claude Code)'; exit ;;
+	auth) echo '{"loggedIn": true, "authMethod": "claude.ai", "subscriptionType": "max"}'; exit ;;
+esac
+[ -n "\$FAKE_LOGO" ] && printf ' ▐▛█  Claude Code v9.9.9\n▝▜██  Modelo · Claude Max\n ▝▝   ~/projeto\n'
 printf '%s\n' "\$@" > "$TMP/args"
 echo "CLAUDE_UI=\$CLAUDE_UI" > "$TMP/env"
 trap 'kill \$!; exit 0' TERM
@@ -27,7 +33,7 @@ servidor_vivo() { T ls >/dev/null 2>&1; }
 # Abre o launcher num pty de 120x30, em segundo plano.
 abrir() {
 	FAKE_SLEEP=$1; shift
-	FAKE_SLEEP=$FAKE_SLEEP PATH="$FAKE:$PATH" TMUX= CLAUDE_UI= \
+	FAKE_SLEEP=$FAKE_SLEEP FAKE_LOGO=1 PATH="$FAKE:$PATH" TMUX= CLAUDE_UI= \
 		script -q /dev/null sh -c 'stty cols 120 rows 30; exec "$0" "$@"' \
 		"$ROOT/bin/claude-ui" "$@" </dev/null >/dev/null 2>&1 &
 	PID=$!
@@ -36,8 +42,8 @@ abrir() {
 
 # Dentro da interface: roda o claude puro.
 : > "$TMP/args"
-PATH="$FAKE:$PATH" CLAUDE_UI=1 "$ROOT/bin/claude-ui" --version
-[ "$(cat "$TMP/args")" = "--version" ] && ! servidor_vivo \
+PATH="$FAKE:$PATH" CLAUDE_UI=1 "$ROOT/bin/claude-ui" -v
+[ "$(cat "$TMP/args")" = "-v" ] && ! servidor_vivo \
 	&& ok "dentro da interface roda o claude puro" \
 	|| falha "dentro da interface roda o claude puro"
 
@@ -63,13 +69,27 @@ echo "$saida" | grep -q "tmux não encontrado" \
 # Layout e argumentos.
 abrir 90 --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S'
 panes=$(T list-panes -a -F '#{pane_left}:#{pane_width}' | tr '\n' ' ')
-[ "$panes" = "0:24 25:95 " ] && ok "sidebar à esquerda e claude no resto" \
+[ "$panes" = "0:24 25:95 25:95 " ] && ok "sidebar à esquerda e claude no resto" \
 	|| falha "layout inesperado: $panes"
 esperado=$(printf '%s\n' --settings "$ROOT/sidebar/hooks.json" --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S')
 [ "$(cat "$TMP/args")" = "$esperado" ] && ok "argumentos chegam ao claude" \
 	|| falha "argumentos: $(cat "$TMP/args" | tr '\n' '|')"
 grep -q "CLAUDE_UI=1" "$TMP/env" && ok "claude roda marcado como dentro da interface" \
 	|| falha "CLAUDE_UI não chegou ao claude"
+
+# Cabeçalho fixo acima da conversa, copiando o logo do claude.
+cab=$(T show -v @cabecalho)
+geometria=$(T display -p -t "$cab" '#{pane_left}:#{pane_top}:#{pane_height}')
+[ "$geometria" = "25:0:3" ] && ok "cabeçalho acima da conversa" || falha "cabeçalho: $geometria"
+T capture-pane -p -t "$cab" | head -1 | grep -q "Claude Code v9.9.9" \
+	&& T capture-pane -p -t "$cab" | grep -q "Modelo · Claude Max" \
+	&& ok "cabeçalho copia o logo do claude" || falha "logo: $(T capture-pane -p -t "$cab")"
+T capture-pane -p -t "$cab" | head -1 | grep -q "^ ▐▛█" && ok "logo mantém o alinhamento" \
+	|| falha "alinhamento: $(T capture-pane -p -t "$cab" | head -1)"
+T resize-window -x 120 -y 50; sleep 1; T resize-window -x 120 -y 20; sleep 1
+[ "$(T display -p -t "$cab" '#{pane_height}')" = 3 ] && ok "cabeçalho mantém 3 linhas ao redimensionar" \
+	|| falha "altura do cabeçalho: $(T display -p -t "$cab" '#{pane_height}')"
+T resize-window -x 120 -y 30; sleep 1
 
 T resize-window -x 180 -y 30
 sleep 1
@@ -135,7 +155,15 @@ sair 7
 	&& ok "sidebar continua escondido quando a conversa sai" || falha "escondido: zoom=$(zoom)/$(na_tela)"
 atalho 'C-\'
 [ "$(zoom)" = 0 ] && [ "$(T display -p '#{pane_id}')" = "$sb" ] \
+	&& [ "$(T display -p -t "$(T show -v @cabecalho)" '#{pane_height}')" = 3 ] \
 	&& ok "ctrl-\\ traz o sidebar de volta" || falha "ctrl-\\: zoom=$(zoom)"
+atalho 'C-\'
+[ -n "$(T display -p '#{@conversa}')" ] && ok "ctrl-\\ volta para a conversa, não para o cabeçalho" \
+	|| falha "ctrl-\\ foi para $(T display -p '#{pane_id}')"
+T select-pane -t "$(T show -v @cabecalho)"; sleep 1
+[ -n "$(T display -p '#{@conversa}')" ] && ok "foco no cabeçalho passa para a conversa" \
+	|| falha "foco ficou em $(T display -p '#{pane_id}')"
+atalho 'C-\'
 tecla '>'; tecla '>'
 T resize-window -x 150 -y 30; sleep 1
 [ "$(largura)" = 28 ] && ok "> alarga o sidebar e a largura se mantém" || falha "largura: $(largura)"

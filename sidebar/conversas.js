@@ -75,7 +75,7 @@ export function esconder(sidebar) {
 
 // Largura escolhida fica em @largura e é reaplicada quando a janela muda de
 // tamanho (hook em bin/main-pane) ou o sidebar volta a aparecer, até metade
-// da janela.
+// da janela. O cabeçalho volta a ter 3 linhas.
 export function largura(sidebar, nova) {
 	const janela = Number(tmux('display', '-p', '-t', sidebar, '#{window_width}'));
 	const teto = Math.max(20, Math.floor(janela / 2));
@@ -83,4 +83,7 @@ export function largura(sidebar, nova) {
 	if (escondido(sidebar)) return;
 	const guardada = Number(tmux('show', '-qv', '@largura')) || 24;
 	tmux('resize-pane', '-t', sidebar, '-x', String(Math.min(guardada, teto)));
+	// Sem zoom, o tmux redistribui a altura entre cabeçalho e conversa.
+	const cabecalho = tmux('show', '-qv', '@cabecalho');
+	if (cabecalho) tmux('resize-pane', '-t', cabecalho, '-y', '3');
 }
