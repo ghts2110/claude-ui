@@ -100,6 +100,14 @@ O alto-falante no canto de baixo do sidebar (ou `v`, com o sidebar focado) liga 
 
 A voz é a [Piper pt_BR faber](https://huggingface.co/rhasspy/piper-voices/tree/main/pt/pt_BR/faber/medium), gerada no próprio computador pelo [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), que o `npm install` já traz para macOS e Linux (Intel e ARM): funciona offline, não gasta tokens e começa a falar meio segundo depois do texto. Na primeira vez que a leitura é ligada, a voz (~67 MB) é baixada para `~/.cache/claude-ui` (ou `$XDG_CACHE_HOME/claude-ui`), com um aviso no sidebar; apagar essa pasta a remove. Enquanto ela baixa, ou se o download falhar (sem internet, sem `bzip2` no Linux), a leitura usa a voz pt-br do sistema (`say` no macOS, `espeak-ng` no Linux) e tenta de novo na próxima vez que for ligada. Sem nenhuma das duas, o sidebar mostra como instalar a do sistema (no macOS, em Ajustes do Sistema > Acessibilidade > Conteúdo Falado > Voz do Sistema > Gerenciar Vozes).
 
+### Ditado por voz
+
+![Ctrl-Q liga o microfone e o que é dito aparece no campo de mensagem do Claude Code](docs/ditado.gif)
+
+O microfone no rodapé do sidebar, logo acima do alto-falante (ou `Ctrl-Q` de qualquer lugar, ou `m` com o sidebar focado), liga o ditado: o que você fala vai sendo digitado no campo de mensagem da conversa da tela, uma frase de cada vez, a cada pausa. Nada é enviado sozinho: revise, corrija se precisar e aperte `Enter`. Clicar de novo, `Ctrl-Q` ou `m` param de ouvir (o que já foi dito ainda é digitado); 20 segundos sem fala também. Enquanto o microfone ouve, o ícone fica vermelho, as ondas pulsam com a sua voz e a leitura em voz alta fica muda, para o ditado não transcrever a voz do Claude.
+
+O reconhecimento é o [Whisper turbo](https://github.com/openai/whisper), o reconhecimento de voz aberto da OpenAI, rodando no próprio computador pelo sherpa-onnx: funciona offline, não gasta tokens e entende termos em inglês no meio do português ("abre um pull request"). Na primeira vez que o microfone é ligado, o modelo (~540 MB) é baixado para `~/.cache/claude-ui`, com o progresso no sidebar. Para ouvir o microfone, no macOS é preciso o `ffmpeg` (`brew install ffmpeg`) ou o `sox`; no Linux, o `parec`, o `pw-record` ou o `arecord`. Sem gravador, ou sem acesso ao microfone, o sidebar diz o que fazer; no macOS, o acesso é do Terminal, em Ajustes do Sistema > Privacidade e Segurança > Microfone.
+
 ### Sidebar ajustável
 
 `h` esconde o sidebar e a conversa ocupa o terminal inteiro; `Ctrl-\` o traz de volta. `<` e `>` estreitam e alargam o sidebar, e arrastar a borda com o mouse também vale. A largura se mantém ao redimensionar o terminal, até metade dele. A borda do pane com o foco fica em ciano.
@@ -127,11 +135,13 @@ No macOS, enquanto a interface estiver aberta, o Mac não entra em repouso e a t
 | `h` | sidebar | esconde o sidebar |
 | `<` / `>` | sidebar | estreita / alarga o sidebar |
 | `v`, clique no alto-falante | sidebar | liga / desliga a leitura em voz alta |
+| `Ctrl-Q` | qualquer lugar | liga / desliga o ditado por voz |
+| `m`, clique no microfone | sidebar | liga / desliga o ditado por voz |
 | `Esc`, `Ctrl-C` | qualquer lugar | calam a fala em andamento |
 | `?` | sidebar | mostra os atalhos (`?`, `q` ou `Esc` fecham) |
 | `Esc` | sidebar | volta para a conversa |
 
-Fora `Ctrl-\`, `Ctrl-T` e `Ctrl-W`, os atalhos só valem com o sidebar focado, então os do Claude Code continuam chegando a ele. Esses três deixam de chegar ao Claude Code dentro da interface (o `Ctrl-W` não apaga mais a palavra anterior no prompt). O prefixo do tmux fica desligado (`Ctrl-b` chega ao Claude Code) e `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
+Fora `Ctrl-\`, `Ctrl-T`, `Ctrl-W` e `Ctrl-Q`, os atalhos só valem com o sidebar focado, então os do Claude Code continuam chegando a ele. Esses quatro deixam de chegar ao Claude Code dentro da interface (o `Ctrl-W` não apaga mais a palavra anterior no prompt). O prefixo do tmux fica desligado (`Ctrl-b` chega ao Claude Code) e `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
 
 ## Claude Code puro
 
@@ -143,8 +153,9 @@ Fora `Ctrl-\`, `Ctrl-T` e `Ctrl-W`, os atalhos só valem com o sidebar focado, e
 
 1. Apague a linha `claude() { ... }` do `~/.zshrc` (ou `~/.bashrc`) e abra um terminal novo.
 2. Apague a pasta clonada: `rm -rf ~/claude-ui`.
+3. Apague os modelos da leitura em voz alta e do ditado, se foram baixados: `rm -rf ~/.cache/claude-ui`.
 
-Não sobra mais nada: o projeto não salva arquivos fora do repositório e cada sessão do tmux morre com o terminal.
+Não sobra mais nada: fora esses modelos, o projeto não salva arquivos fora do repositório e cada sessão do tmux morre com o terminal.
 
 ## Problemas comuns
 
