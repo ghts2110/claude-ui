@@ -117,14 +117,20 @@ tecla n; sair 5
 # Atalhos como se digitados no terminal.
 cliente=$(T list-clients -F '#{client_name}')
 atalho() { T send-keys -K -c "$cliente" "$1"; sleep 1.5; }
-! T list-keys -T root C-t >/dev/null 2>&1 && ! T list-keys -T root C-w >/dev/null 2>&1 \
-	&& ok "ctrl-t e ctrl-w chegam ao claude" || falha "ctrl-t/ctrl-w presos pelo tmux"
+atalho C-t
+[ "$(conversas)" = "4 6 " ] && [ "$(na_tela)" = 6 ] && [ "$(T display -p '#{@conversa}')" = 6 ] \
+	&& ok "ctrl-t abre conversa nova" || falha "ctrl-t: $(conversas)/$(na_tela)"
+atalho C-w; atalho n
+[ "$(conversas)" = "4 6 " ] && ok "ctrl-w n não fecha" || falha "ctrl-w n: $(conversas)"
+atalho C-w; atalho s
+[ "$(conversas)" = "4 " ] && [ "$(na_tela)" = 4 ] && [ "$(T display -p '#{@conversa}')" = 4 ] \
+	&& ok "ctrl-w s fecha a conversa da tela" || falha "ctrl-w s: $(conversas)/$(na_tela)"
 zoom() { T display -p -t "$sb" '#{window_zoomed_flag}'; }
 largura() { T display -p -t "$sb" '#{pane_width}'; }
 tecla n; tecla h
 [ "$(zoom)" = 1 ] && [ "$(T display -p '#{pane_id}')" != "$sb" ] \
 	&& ok "h esconde o sidebar" || falha "h: zoom=$(zoom)"
-sair 6
+sair 7
 [ "$(zoom)" = 1 ] && [ "$(na_tela)" = 4 ] \
 	&& ok "sidebar continua escondido quando a conversa sai" || falha "escondido: zoom=$(zoom)/$(na_tela)"
 atalho 'C-\'

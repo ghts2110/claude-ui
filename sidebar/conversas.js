@@ -1,5 +1,5 @@
-// Operações sobre as conversas e o sidebar, usadas por ele. `sidebar` é o id
-// do pane do sidebar.
+// Operações sobre as conversas e o sidebar, usadas por ele e pelos atalhos do
+// tmux (sidebar/acao.js). `sidebar` é o id do pane do sidebar.
 import {execFileSync} from 'node:child_process';
 
 const conversa = new URL('../bin/conversa', import.meta.url).pathname;

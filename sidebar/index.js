@@ -34,8 +34,8 @@ const atalhos = [
 	['ctrl+\\', 'alternar'],
 	['↑↓ j k', 'escolher'],
 	['enter', 'abrir'],
-	['n', 'nova'],
-	['x', 'fechar'],
+	['n ctrl+t', 'nova'],
+	['x ctrl+w', 'fechar'],
 	['h', 'esconder'],
 	['< >', 'largura'],
 	['esc', 'voltar'],
@@ -46,7 +46,7 @@ function Ajuda() {
 		Box,
 		{flexDirection: 'column'},
 		atalhos.map(([tecla, acao]) =>
-			h(Text, {key: tecla, wrap: 'truncate-end'}, h(Text, {color: destaque}, tecla.padEnd(8)), acao),
+			h(Text, {key: tecla, wrap: 'truncate-end'}, h(Text, {color: destaque}, tecla.padEnd(9)), acao),
 		),
 		h(Box, {flexDirection: 'column', marginTop: 1}, [
 			'Escondido, ctrl+\\',
@@ -202,7 +202,7 @@ function Sidebar() {
 	if (confirmar) rodape = [h(Text, {key: 1, color: aviso, wrap: 'truncate-end'}, `fechar ${alvo?.titulo}?`), dica(2, 's sim · n não')];
 	else if (ajuda) rodape = [dica(1, '? ou esc  fechar')];
 	else if (focado) rodape = [dica(1, '↑↓ enter  abrir'), dica(2, 'n nova · x fechar'), dica(3, '? ajuda · esc sai')];
-	else rodape = [dica(1, 'ctrl+\\  sidebar')];
+	else rodape = [dica(1, 'ctrl+t  nova'), dica(2, 'ctrl+w  fechar'), dica(3, 'ctrl+\\  sidebar')];
 
 	return h(
 		Box,
