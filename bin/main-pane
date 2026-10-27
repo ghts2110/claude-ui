@@ -5,16 +5,23 @@
 sidebar=$(tmux split-window -hbd -l 24 -P -F '#{pane_id}' -- \
 	"$CLAUDE_UI_NODE" "$CLAUDE_UI_ROOT/sidebar/index.js")
 tmux set -q @sidebar "$sidebar"
+
+# Cabeçalho fixo acima da conversa (ver sidebar/cabecalho.js): 3 linhas, a
+# altura do logo do Claude Code. Começa guardado numa janela própria e só
+# aparece quando o logo original rola para fora.
+cabecalho=$(tmux new-window -d -P -F '#{pane_id}' -- \
+	"$CLAUDE_UI_NODE" "$CLAUDE_UI_ROOT/sidebar/cabecalho.js")
+tmux set -q @cabecalho "$cabecalho"
 tmux set -q @largura 24
 
 # Largura escolhida (teclas < > no sidebar ou arrastando a borda) fica em
 # @largura e é reaplicada ao redimensionar a janela, até metade dela (mesma
-# conta de sidebar/conversas.js). Escondido (zoom), não mexe: resize-pane
+# conta de sidebar/conversas.js); o cabeçalho volta a ter 3 linhas. Escondido (zoom), não mexe: resize-pane
 # tiraria o zoom.
 metade='#{e|/:#{window_width},2}'
 teto="#{?#{e|<:$metade,20},20,$metade}"
 largura="#{?#{e|<:#{@largura},$teto},#{@largura},$teto}"
-aplicar="if -F -t $sidebar '#{window_zoomed_flag}' '' \"run-shell -t $sidebar -C 'resize-pane -t $sidebar -x $largura'\""
+aplicar="if -F -t $sidebar '#{window_zoomed_flag}' '' \"run-shell -t $sidebar -C 'resize-pane -t $sidebar -x $largura' ; resize-pane -t $cabecalho -y 3\""
 guardar="if -F -t $sidebar '#{window_zoomed_flag}' '' \"set -t $sidebar -F @largura '#{pane_width}'\""
 tmux set-hook -w window-resized "$aplicar"
 tmux run-shell -t "$sidebar" -C "$aplicar"
