@@ -3,6 +3,7 @@ import {render, Box, Text, useInput, useStdout} from 'ink';
 import {execFile} from 'node:child_process';
 import {basename} from 'node:path';
 import * as conv from './conversas.js';
+import * as anel from './anel.js';
 
 const h = React.createElement;
 const sidebar = process.env.TMUX_PANE;
@@ -17,6 +18,7 @@ const destaque = '#0891b2';
 const apagado = '#6b7280';
 const aviso = '#d97706';
 const vermelho = '#dc2626';
+const laranja = '#d97706';
 
 // Ícones de status como os do workmux, sem emoji (largura incerta no
 // terminal): spinner enquanto trabalha, ? quando precisa de você, ✓ pronto.
@@ -83,6 +85,31 @@ function Conversa({conversa, sobCursor, quadro, mudancas, largura}) {
 	);
 }
 
+// Uso do plano na janela de 5h (ver sidebar/anel.js): a parte usada em
+// laranja, o resto apagado; sem o dado, todo apagado. A % e o reinício só
+// aparecem ao lado com o mouse em cima ou depois de um clique.
+function Anel({uso, detalhe}) {
+	const hora = segundos => {
+		const data = new Date(segundos * 1000);
+		return `${String(data.getHours()).padStart(2, '0')}:${String(data.getMinutes()).padStart(2, '0')}`;
+	};
+	const texto = !detalhe ? [] : uso
+		? [h(Text, {key: 1, bold: true, color: laranja}, `${Math.round(uso.usado)}% usado`), h(Text, {key: 2, color: apagado, wrap: 'truncate-end'}, 'do plano (5h)'), h(Text, {key: 3, color: apagado, wrap: 'truncate-end'}, `reinicia ${hora(uso.reinicia)}`)]
+		: [h(Text, {key: 1, color: apagado, wrap: 'truncate-end'}, 'uso do plano'), h(Text, {key: 2, color: apagado, wrap: 'truncate-end'}, 'indisponível')];
+	return h(
+		Box,
+		{height: anel.linhas, flexShrink: 0},
+		h(
+			Box,
+			{flexDirection: 'column', flexShrink: 0, marginRight: 1},
+			anel.anel((uso?.usado ?? 0) / 100).map((trechos, l) =>
+				h(Text, {key: l}, trechos.map(({texto, cheio}, j) => h(Text, {key: j, color: cheio ? laranja : apagado, dimColor: !cheio}, texto))),
+			),
+		),
+		h(Box, {flexDirection: 'column', flexShrink: 1, overflow: 'hidden'}, texto),
+	);
+}
+
 const atalhos = [
 	['ctrl+\\', 'alternar'],
 	['↑↓ j k', 'escolher'],
@@ -129,6 +156,9 @@ function Sidebar() {
 	const [confirmar, setConfirmar] = useState(null);
 	const [ajuda, setAjuda] = useState(false);
 	const [quadro, setQuadro] = useState(0);
+	// % do anel à mostra: com o mouse em cima ou fixada por um clique.
+	const [sobreAnel, setSobreAnel] = useState(false);
+	const [anelFixo, setAnelFixo] = useState(false);
 	// Diff de cada pasta (ver diff()), por caminho.
 	const [mudancas, setMudancas] = useState({});
 	const atualizar = () => {
@@ -150,10 +180,11 @@ function Sidebar() {
 		tmux('set-hook', '-g', 'pane-focus-in', aviso);
 		tmux('set-hook', '-g', 'pane-exited', aviso);
 		const intervalo = setInterval(atualizar, 1000);
-		// Pede ao tmux os cliques e a rodinha do mouse, no formato SGR.
-		stdout.write('\x1b[?1000h\x1b[?1006h');
+		// Pede ao tmux os cliques, a rodinha e os movimentos do mouse (para
+		// passar sobre o anel), no formato SGR.
+		stdout.write('\x1b[?1003h\x1b[?1006h');
 		process.on('exit', () => {
-			stdout.write('\x1b[?1000l\x1b[?1006l');
+			stdout.write('\x1b[?1003l\x1b[?1006l');
 			try {
 				tmux('set-hook', '-gu', 'pane-focus-in');
 				tmux('set-hook', '-gu', 'pane-exited');
@@ -167,6 +198,7 @@ function Sidebar() {
 	}, []);
 
 	const {conversas, focado} = estado;
+	const uso = anel.ler(estado.uso);
 
 	// O spinner só anda enquanto alguma conversa trabalha.
 	const trabalhando = conversas.some(c => c.status === 'trabalhando');
@@ -230,18 +262,25 @@ function Sidebar() {
 	const abrir = id => agir(() => conv.abrir(sidebar, id));
 
 	// Só cabem algumas conversas: mostra a fatia em volta do cursor. Fora o
-	// título e o rodapé, sobram linhas para elas, menos uma para o "↓ mais"
-	// quando não cabem todas (o "↑ acima" usa a linha abaixo do título).
-	let cabem = Math.max(1, Math.floor((linhas - 6) / 3));
-	if (conversas.length > cabem) cabem = Math.max(1, Math.floor((linhas - 7) / 3));
+	// título, o anel e o rodapé, sobram linhas para elas, menos uma para o
+	// "↓ mais" quando não cabem todas (o "↑ acima" usa a linha abaixo do título).
+	const fixas = 6 + anel.linhas;
+	let cabem = Math.max(1, Math.floor((linhas - fixas) / 3));
+	if (conversas.length > cabem) cabem = Math.max(1, Math.floor((linhas - fixas - 1) / 3));
 	const inicio = Math.min(Math.max(0, i - Math.floor(cabem / 2)), Math.max(0, conversas.length - cabem));
 	const visiveis = conversas.slice(inicio, inicio + cabem);
 	const abaixo = conversas.length - inicio - visiveis.length;
 
 	// Clique (botão 0) abre a conversa; a rodinha (64/65) move o cursor. Os
-	// botões começam na linha 3 e têm 3 linhas cada.
-	function mouse(botao, linha) {
-		if (botao === 64) setCursor(conversas[Math.max(0, i - 1)]?.id);
+	// botões começam na linha 3 e têm 3 linhas cada. O anel fica logo acima
+	// das 3 linhas do rodapé, depois da margem de uma coluna; passar o mouse
+	// (35, movimento sem botão) mostra a %, e o clique a fixa ou solta.
+	const topoAnel = linhas - 3 - anel.linhas;
+	const noAnel = (linha, coluna) => linha >= topoAnel && linha < topoAnel + anel.linhas && coluna >= 2 && coluna < 2 + anel.colunas;
+	function mouse(botao, linha, coluna) {
+		if (botao === 35) setSobreAnel(noAnel(linha, coluna));
+		else if (botao === 0 && noAnel(linha, coluna)) setAnelFixo(fixo => !fixo);
+		else if (botao === 64) setCursor(conversas[Math.max(0, i - 1)]?.id);
 		else if (botao === 65) setCursor(conversas[Math.min(conversas.length - 1, i + 1)]?.id);
 		else if (botao === 0 && linha >= 3 && !ajuda) {
 			const conversa = visiveis[Math.floor((linha - 3) / 3)];
@@ -254,10 +293,10 @@ function Sidebar() {
 	}
 
 	useInput((input, key) => {
-		const eventos = [...input.matchAll(/\[<(\d+);\d+;(\d+)([Mm])/g)];
+		const eventos = [...input.matchAll(/\[<(\d+);(\d+);(\d+)([Mm])/g)];
 		if (eventos.length) {
-			for (const [, botao, linha, tipo] of eventos) {
-				if (tipo === 'M') mouse(Number(botao), Number(linha));
+			for (const [, botao, coluna, linha, tipo] of eventos) {
+				if (tipo === 'M') mouse(Number(botao), Number(linha), Number(coluna));
 			}
 			return;
 		}
@@ -360,6 +399,7 @@ function Sidebar() {
 					abaixo ? seta('abaixo', `↓ ${abaixo} abaixo`) : null,
 				],
 		),
+		h(Anel, {uso, detalhe: sobreAnel || anelFixo}),
 		h(Box, {flexDirection: 'column', height: 3, flexShrink: 0, justifyContent: 'flex-end'}, rodape),
 	);
 }
