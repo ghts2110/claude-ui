@@ -33,5 +33,6 @@ if [ "$(janela "$TMUX_PANE")" = "$(janela "$(tmux show -qv @sidebar)")" ]; then
 		-y "$(tmux display -p -t "$TMUX_PANE" '#{pane_height}')"
 	tmux swap-pane -dZ -s "$outra" -t "$TMUX_PANE"
 	tmux select-pane -Z -t "$outra"
+	kill -USR2 "$(tmux display -p -t "$(tmux show -qv @cabecalho)" '#{pane_pid}')" 2>/dev/null
 fi
 exit $status

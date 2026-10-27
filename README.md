@@ -53,7 +53,7 @@ No sidebar, cada conversa é um `claude` separado; as que não estão na tela co
 
 - O título de cada conversa é a primeira mensagem dela (até lá, "nova conversa"); `/clear` volta ao provisório.
 - A bolinha mostra o status: verde quando o Claude terminou, azul quando precisa de você (pergunta, permissão ou aprovação), amarela enquanto trabalha. Vazia quando a conversa ainda não teve mensagem.
-- Acima da conversa fica fixo o logo do Claude Code com versão, modelo, plano e pasta, copiado do início da conversa que está na tela; não rola com ela. Se o logo sumir do histórico, aparecem só versão, plano e pasta.
+- Quando o logo do Claude Code (versão, modelo, plano e pasta) rola para fora da conversa, uma cópia dele fica fixa acima dela; se o logo voltar à tela, a cópia sai. Se ele sumir do histórico, aparecem só versão, plano e pasta.
 - Título e status vêm de hooks do Claude Code, passados com `--settings` (ver `sidebar/hooks.json`). Se você também passar `--settings`, ou desligar hooks nas suas configurações, a conversa fica sem título e sem status.
 
 - `Ctrl-\` alterna o foco entre o sidebar e a conversa.

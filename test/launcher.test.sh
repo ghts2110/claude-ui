@@ -68,8 +68,8 @@ echo "$saida" | grep -q "tmux não encontrado" \
 
 # Layout e argumentos.
 abrir 90 --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S'
-panes=$(T list-panes -a -F '#{pane_left}:#{pane_width}' | tr '\n' ' ')
-[ "$panes" = "0:24 25:95 25:95 " ] && ok "sidebar à esquerda e claude no resto" \
+panes=$(T list-panes -t "$(T show -v @sidebar)" -F '#{pane_left}:#{pane_width}' | tr '\n' ' ')
+[ "$panes" = "0:24 25:95 " ] && ok "sidebar à esquerda e claude no resto" \
 	|| falha "layout inesperado: $panes"
 esperado=$(printf '%s\n' --settings "$ROOT/sidebar/hooks.json" --model opus "olá mundo" ";" "x;" '$HOME' '\;' 'dir#S')
 [ "$(cat "$TMP/args")" = "$esperado" ] && ok "argumentos chegam ao claude" \
@@ -77,8 +77,15 @@ esperado=$(printf '%s\n' --settings "$ROOT/sidebar/hooks.json" --model opus "ol�
 grep -q "CLAUDE_UI=1" "$TMP/env" && ok "claude roda marcado como dentro da interface" \
 	|| falha "CLAUDE_UI não chegou ao claude"
 
-# Cabeçalho fixo acima da conversa, copiando o logo do claude.
+# Cabeçalho fixo acima da conversa, copiando o logo do claude, só depois que
+# o logo original rola para fora (Enter ecoa linhas em branco no claude falso).
 cab=$(T show -v @cabecalho)
+janela() { T display -p -t "$1" '#{window_id}'; }
+[ "$(janela "$cab")" != "$(janela "$(T show -v @sidebar)")" ] \
+	&& ok "sem cabeçalho com o logo original na tela" || falha "cabeçalho com o logo na tela"
+conversa=$(T list-panes -a -F '#{pane_id} #{@conversa}' | awk '$2 { print $1 }')
+for _ in $(seq 40); do T send-keys -t "$conversa" Enter; done
+sleep 1.5
 geometria=$(T display -p -t "$cab" '#{pane_left}:#{pane_top}:#{pane_height}')
 [ "$geometria" = "25:0:3" ] && ok "cabeçalho acima da conversa" || falha "cabeçalho: $geometria"
 T capture-pane -p -t "$cab" | head -1 | grep -q "Claude Code v9.9.9" \
@@ -90,6 +97,9 @@ T resize-window -x 120 -y 50; sleep 1; T resize-window -x 120 -y 20; sleep 1
 [ "$(T display -p -t "$cab" '#{pane_height}')" = 3 ] && ok "cabeçalho mantém 3 linhas ao redimensionar" \
 	|| falha "altura do cabeçalho: $(T display -p -t "$cab" '#{pane_height}')"
 T resize-window -x 120 -y 30; sleep 1
+T select-pane -t "$cab"; sleep 1
+[ -n "$(T display -p '#{@conversa}')" ] && ok "foco no cabeçalho passa para a conversa" \
+	|| falha "foco ficou em $(T display -p '#{pane_id}')"
 
 T resize-window -x 180 -y 30
 sleep 1
@@ -112,6 +122,8 @@ sair() {
 tecla n; tecla n
 [ "$(conversas)" = "1 2 3 " ] && [ "$(na_tela)" = 3 ] \
 	&& ok "n cria conversa na área principal" || falha "n: $(conversas)/$(na_tela)"
+[ "$(janela "$cab")" != "$(janela "$sb")" ] && [ "$(T display -p -t "$sb" '#{window_height}')" = 30 ] \
+	&& ok "conversa nova na tela tira o cabeçalho" || falha "cabeçalho na conversa nova"
 tecla Up; tecla Enter
 [ "$(na_tela)" = 2 ] && [ "$(T display -p '#{@conversa}')" = 2 ] \
 	&& ok "enter traz a conversa para a tela" || falha "enter: $(na_tela)"
@@ -155,14 +167,10 @@ sair 7
 	&& ok "sidebar continua escondido quando a conversa sai" || falha "escondido: zoom=$(zoom)/$(na_tela)"
 atalho 'C-\'
 [ "$(zoom)" = 0 ] && [ "$(T display -p '#{pane_id}')" = "$sb" ] \
-	&& [ "$(T display -p -t "$(T show -v @cabecalho)" '#{pane_height}')" = 3 ] \
 	&& ok "ctrl-\\ traz o sidebar de volta" || falha "ctrl-\\: zoom=$(zoom)"
 atalho 'C-\'
 [ -n "$(T display -p '#{@conversa}')" ] && ok "ctrl-\\ volta para a conversa, não para o cabeçalho" \
 	|| falha "ctrl-\\ foi para $(T display -p '#{pane_id}')"
-T select-pane -t "$(T show -v @cabecalho)"; sleep 1
-[ -n "$(T display -p '#{@conversa}')" ] && ok "foco no cabeçalho passa para a conversa" \
-	|| falha "foco ficou em $(T display -p '#{pane_id}')"
 atalho 'C-\'
 tecla '>'; tecla '>'
 T resize-window -x 150 -y 30; sleep 1

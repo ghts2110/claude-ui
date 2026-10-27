@@ -39,6 +39,14 @@ export function mostrar(sidebar, id) {
 	const [largura, altura] = tmux('display', '-p', '-t', atual, '#{pane_width} #{pane_height}').split(' ');
 	tmux('resize-window', '-t', id, '-x', largura, '-y', altura);
 	tmux('swap-pane', '-dZ', '-s', id, '-t', atual);
+	avisarCabecalho();
+}
+
+// O cabeçalho (sidebar/cabecalho.js) se ajusta logo à conversa que entrou.
+export function avisarCabecalho() {
+	try {
+		process.kill(Number(tmux('display', '-p', '-t', tmux('show', '-qv', '@cabecalho'), '#{pane_pid}')), 'SIGUSR2');
+	} catch {}
 }
 
 export function abrir(sidebar, id) {

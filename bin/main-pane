@@ -7,8 +7,9 @@ sidebar=$(tmux split-window -hbd -l 24 -P -F '#{pane_id}' -- \
 tmux set -q @sidebar "$sidebar"
 
 # Cabeçalho fixo acima da conversa (ver sidebar/cabecalho.js): 3 linhas, a
-# altura do logo do Claude Code. Trocar de conversa troca só o pane de baixo.
-cabecalho=$(tmux split-window -vbd -l 3 -P -F '#{pane_id}' -- \
+# altura do logo do Claude Code. Começa guardado numa janela própria e só
+# aparece quando o logo original rola para fora.
+cabecalho=$(tmux new-window -d -P -F '#{pane_id}' -- \
 	"$CLAUDE_UI_NODE" "$CLAUDE_UI_ROOT/sidebar/cabecalho.js")
 tmux set -q @cabecalho "$cabecalho"
 tmux set -q @largura 24
