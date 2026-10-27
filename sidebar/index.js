@@ -159,6 +159,8 @@ function Sidebar() {
 	// % do anel à mostra: com o mouse em cima ou fixada por um clique.
 	const [sobreAnel, setSobreAnel] = useState(false);
 	const [anelFixo, setAnelFixo] = useState(false);
+	// Conta os movimentos do mouse, para o prazo da % recomeçar a cada um.
+	const [quadroMouse, setQuadroMouse] = useState(0);
 	// Diff de cada pasta (ver diff()), por caminho.
 	const [mudancas, setMudancas] = useState({});
 	const atualizar = () => {
@@ -236,6 +238,7 @@ function Sidebar() {
 	useEffect(() => {
 		setConfirmar(null);
 		setAjuda(false);
+		setSobreAnel(false);
 		if (focado) {
 			setCursor(null);
 			try {
@@ -243,6 +246,15 @@ function Sidebar() {
 			} catch {}
 		}
 	}, [focado]);
+
+	// O tmux só manda o movimento ao pane sob o mouse: saindo rápido do
+	// sidebar, nenhum evento avisa que ele deixou o anel. Sem movimento por
+	// alguns segundos, a % some.
+	useEffect(() => {
+		if (!sobreAnel) return;
+		const prazo = setTimeout(() => setSobreAnel(false), 4000);
+		return () => clearTimeout(prazo);
+	}, [sobreAnel, quadroMouse]);
 
 	// A conversa a fechar saiu sozinha enquanto esperava o "s": desiste.
 	const alvo = conversas.find(c => c.id === confirmar);
@@ -278,7 +290,11 @@ function Sidebar() {
 	const topoAnel = linhas - 3 - anel.linhas;
 	const noAnel = (linha, coluna) => linha >= topoAnel && linha < topoAnel + anel.linhas && coluna >= 2 && coluna < 2 + anel.colunas;
 	function mouse(botao, linha, coluna) {
-		if (botao === 35) setSobreAnel(noAnel(linha, coluna));
+		// Movimento com shift, alt ou ctrl soma 4, 8 ou 16 ao botão.
+		if ((botao & ~28) === 35) {
+			setSobreAnel(noAnel(linha, coluna));
+			setQuadroMouse(n => n + 1);
+		}
 		else if (botao === 0 && noAnel(linha, coluna)) setAnelFixo(fixo => !fixo);
 		else if (botao === 64) setCursor(conversas[Math.max(0, i - 1)]?.id);
 		else if (botao === 65) setCursor(conversas[Math.min(conversas.length - 1, i + 1)]?.id);
