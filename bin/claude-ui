@@ -58,13 +58,13 @@ for arg do
 	set -- "$@" "$arg"
 done
 
-# Enquanto a sessão estiver aberta, o Mac não dorme por inatividade (a tela
-# pode apagar; fechar a tampa continua pondo para dormir). -w prende o
+# Enquanto a sessão estiver aberta, nem o Mac dorme nem a tela apaga por
+# inatividade (-i e -d; fechar a tampa continua pondo para dormir). -w prende o
 # caffeinate a este processo, que vira o cliente do tmux no exec e só sai
 # quando a sessão acaba: terminal fechado ou crash também o soltam. Só no
 # macOS: no Linux, o caffeinate do pacote caffeine tem outra sintaxe.
 if [ "$(uname)" = Darwin ] && command -v caffeinate >/dev/null 2>&1; then
-	caffeinate -i -w $$ </dev/null >/dev/null 2>&1 &
+	caffeinate -di -w $$ </dev/null >/dev/null 2>&1 &
 fi
 
 # Um servidor tmux por terminal, para cada claude herdar o ambiente do
