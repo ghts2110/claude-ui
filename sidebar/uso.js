@@ -20,12 +20,17 @@ try {
 } catch {}
 
 // Só grava quando há dado: uma conversa que ainda não teve resposta não apaga
-// o que outra já sabe. O uso é da conta, então vale para todas.
+// o que outra já sabe. O uso é da conta, então vale para todas. Uma conversa
+// parada reroda a statusline (cache vencido, troca de modo) com o dado da
+// última resposta dela: só vale um dado mais novo, de uma janela de 5h
+// posterior ou, na mesma janela, com % maior (ela só sobe).
 const janela = dados.rate_limits?.five_hour;
 if (Number.isFinite(janela?.used_percentage) && Number.isFinite(janela?.resets_at)) {
 	try {
 		const uso = `${janela.used_percentage} ${janela.resets_at}`;
-		if (tmux('show', '-qv', '@uso') !== uso) {
+		const [usado, reinicia] = tmux('show', '-qv', '@uso').split(' ').map(Number);
+		const novo = !(reinicia >= janela.resets_at) || (reinicia === janela.resets_at && janela.used_percentage > usado);
+		if (novo) {
 			tmux('set', '-q', '@uso', uso);
 			process.kill(Number(tmux('display', '-p', '-t', tmux('show', '-qv', '@sidebar'), '#{pane_pid}')), 'SIGUSR2');
 		}
@@ -33,19 +38,23 @@ if (Number.isFinite(janela?.used_percentage) && Number.isFinite(janela?.resets_a
 }
 
 // A statusline que valeria sem o claude-ui, na ordem de precedência do Claude
-// Code: a local e a do projeto, depois a do usuário.
+// Code: a local e a do projeto, depois a do usuário. Com disableAllHooks, o
+// Claude Code não a rodaria; a saída só aparece se ela terminar bem.
 const projeto = dados.workspace?.project_dir ?? dados.cwd ?? process.cwd();
 const configuracoes = [
 	join(projeto, '.claude', 'settings.local.json'),
 	join(projeto, '.claude', 'settings.json'),
 	join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), 'settings.json'),
 ];
-for (const arquivo of configuracoes) {
-	let comando;
+const lidas = configuracoes.map(arquivo => {
 	try {
-		comando = JSON.parse(readFileSync(arquivo, 'utf8')).statusLine?.command;
-	} catch {}
-	if (!comando) continue;
-	spawnSync(comando, {shell: true, input: entrada, stdio: ['pipe', 'inherit', 'ignore'], timeout: 5000});
-	break;
+		return JSON.parse(readFileSync(arquivo, 'utf8'));
+	} catch {
+		return {};
+	}
+});
+const comando = lidas.find(c => c.statusLine?.command)?.statusLine.command;
+if (comando && !lidas.some(c => c.disableAllHooks === true)) {
+	const {status} = spawnSync(comando, {shell: true, input: entrada, stdio: ['pipe', 'inherit', 'ignore'], timeout: 5000});
+	process.exitCode = status ?? 1;
 }
