@@ -7,7 +7,11 @@
 // conversa tem novidade até ser aberta (ver sidebar/conversas.js).
 // O transcript da conversa fica em @transcript, para a leitura em voz alta
 // (ver sidebar/voz.js); mandar uma mensagem na conversa da tela cala a fala.
-import {readFileSync} from 'node:fs';
+// Ao passar a pronto ou esperando, a conversa apita: o BEL vai para o tty do
+// pane dela, e o tmux o repassa ao terminal mesmo com ela fora da tela
+// (bell-action any no tmux.conf). O Terminal.app toca o som e, fora de foco,
+// faz o ícone pular no Dock.
+import {appendFileSync, readFileSync} from 'node:fs';
 import {tmux} from './conversas.js';
 
 const pane = process.env.TMUX_PANE;
@@ -38,6 +42,7 @@ try {
 				// Aberta enquanto o hook rodava: não é novidade.
 				if (janela(pane) === janela(tmux('show', '-qv', '@sidebar'))) tmux('set', '-pu', '-t', pane, '@novo');
 			}
+			if (estado !== 'trabalhando') appendFileSync(tmux('display', '-p', '-t', pane, '#{pane_tty}'), '\x07');
 		}
 	}
 } catch {}
