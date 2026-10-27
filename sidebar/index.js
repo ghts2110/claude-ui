@@ -1,5 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {render, Box, Text, useInput, useStdout} from 'ink';
+import {execFile} from 'node:child_process';
+import {basename} from 'node:path';
 import * as conv from './conversas.js';
 
 const h = React.createElement;
@@ -14,26 +16,81 @@ const cores = {pronto: '#2ea043', esperando: '#3b82f6', trabalhando: '#d4a017'};
 const destaque = '#0891b2';
 const apagado = '#6b7280';
 const aviso = '#d97706';
+const vermelho = '#dc2626';
 
-function Conversa({conversa, sobCursor}) {
-	const cor = sobCursor ? destaque : conversa.naTela ? undefined : apagado;
-	const status = cores[conversa.status];
+// Ícones de status como os do workmux, sem emoji (largura incerta no
+// terminal): spinner enquanto trabalha, ? quando precisa de você, ✓ pronto.
+const spinner = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
+const icones = {esperando: '?', pronto: '✓'};
+
+// Tempo desde a última mudança de status, curto como no workmux: 2:14, 3h, 2d.
+function tempo(desde) {
+	const s = Math.max(0, Math.floor(Date.now() / 1000) - desde);
+	if (s < 3600) return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+	if (s < 86400) return `${Math.floor(s / 3600)}h`;
+	return `${Math.floor(s / 86400)}d`;
+}
+
+const home = process.env.HOME;
+const pasta = caminho => (!caminho ? '' : caminho === home ? '~' : basename(caminho));
+
+// Linhas mudadas desde o último commit na pasta da conversa (git diff HEAD),
+// como os números do workmux. Sem git ou sem mudança, nada.
+function diff(caminho) {
+	return new Promise(resolve => {
+		// Sem travar o índice (um git add do claude falharia com index.lock) nem
+		// rodar diff externo ou textconv do usuário, como no workmux.
+		execFile('git', ['--no-optional-locks', '-C', caminho, 'diff', '--no-ext-diff', '--no-textconv', '--shortstat', 'HEAD'], {timeout: 3000}, (erro, saida) => {
+			if (erro) return resolve();
+			const mais = Number(saida.match(/(\d+) insert/)?.[1] ?? 0);
+			const menos = Number(saida.match(/(\d+) delet/)?.[1] ?? 0);
+			resolve(mais || menos ? {mais, menos} : undefined);
+		});
+	});
+}
+
+// Cada conversa ocupa 3 linhas: título e tempo, pasta e diff, separador. À
+// esquerda, uma faixa na cor do status, como os tiles do workmux; sob o
+// cursor, mais grossa e no tom de destaque.
+function Conversa({conversa, sobCursor, quadro, mudancas, largura}) {
+	const cor = cores[conversa.status];
+	const icone = conversa.status === 'trabalhando' ? spinner[quadro % spinner.length] : icones[conversa.status] ?? '○';
+	// Na tela ou com novidade (mudou fora da tela e não foi vista): em
+	// negrito. As outras ficam apagadas.
+	const forte = conversa.naTela || conversa.novo;
+	const faixa = h(Box, {flexShrink: 0}, h(Text, {color: sobCursor ? destaque : cor ?? apagado}, sobCursor ? '┃ ' : '▎ '));
+	const fixo = filho => h(Box, {flexShrink: 0}, filho);
+	const flexivel = filho => h(Box, {flexGrow: 1, flexShrink: 1, overflow: 'hidden'}, filho);
 	return h(
 		Box,
-		{borderStyle: 'round', borderColor: cor ?? apagado, paddingX: 1, flexShrink: 0},
+		{flexDirection: 'column', flexShrink: 0},
 		h(
-			Text,
-			{wrap: 'truncate-end'},
-			h(Text, {color: status ?? apagado}, status ? '● ' : '○ '),
-			h(Text, {bold: conversa.naTela, color: cor}, conversa.titulo),
+			Box,
+			null,
+			faixa,
+			fixo(h(Text, {color: cor ?? apagado}, `${icone} `)),
+			flexivel(h(Text, {wrap: 'truncate-end', bold: forte, color: sobCursor ? destaque : forte ? undefined : apagado}, conversa.titulo)),
+			conversa.desde ? fixo(h(Text, {color: apagado}, ` ${tempo(conversa.desde)}`)) : null,
 		),
+		h(
+			Box,
+			null,
+			faixa,
+			flexivel(h(Text, {wrap: 'truncate-end', color: apagado}, `  ${pasta(conversa.pasta)}`)),
+			mudancas ? h(Box, {flexShrink: 0}, h(Text, {color: cores.pronto}, ` +${mudancas.mais}`), h(Text, {color: vermelho}, ` -${mudancas.menos}`)) : null,
+		),
+		h(Text, {color: apagado}, '─'.repeat(Math.max(0, largura))),
 	);
 }
 
 const atalhos = [
 	['ctrl+\\', 'alternar'],
 	['↑↓ j k', 'escolher'],
+	['g G', 'início, fim'],
 	['enter', 'abrir'],
+	['1-9', 'abrir a nº'],
+	['tab', 'anterior'],
+	['p', 'pendente'],
 	['n ctrl+t', 'nova'],
 	['x ctrl+w', 'fechar'],
 	['h', 'esconder'],
@@ -49,6 +106,10 @@ function Ajuda() {
 			h(Text, {key: tecla, wrap: 'truncate-end'}, h(Text, {color: destaque}, tecla.padEnd(9)), acao),
 		),
 		h(Box, {flexDirection: 'column', marginTop: 1}, [
+			'p vai para a que',
+			'espera por você',
+			'ou terminou sem',
+			'ser vista.',
 			'Escondido, ctrl+\\',
 			'o traz de volta.',
 			'A borda também',
@@ -61,11 +122,15 @@ function Ajuda() {
 function Sidebar() {
 	const {stdout} = useStdout();
 	const [linhas, setLinhas] = useState(stdout.rows);
+	const [colunas, setColunas] = useState(stdout.columns);
 	const [estado, setEstado] = useState(ler);
 	const [cursor, setCursor] = useState(null);
 	// Id da conversa a fechar, enquanto espera o "s".
 	const [confirmar, setConfirmar] = useState(null);
 	const [ajuda, setAjuda] = useState(false);
+	const [quadro, setQuadro] = useState(0);
+	// Diff de cada pasta (ver diff()), por caminho.
+	const [mudancas, setMudancas] = useState({});
 	const atualizar = () => {
 		try {
 			setEstado(ler());
@@ -73,7 +138,10 @@ function Sidebar() {
 	};
 
 	useEffect(() => {
-		const redimensionar = () => setLinhas(stdout.rows);
+		const redimensionar = () => {
+			setLinhas(stdout.rows);
+			setColunas(stdout.columns);
+		};
 		stdout.on('resize', redimensionar);
 		// Hooks do tmux avisam quando o foco muda ou uma conversa sai; o
 		// intervalo cobre o resto (ex: conversa nova ainda sem @conversa).
@@ -99,6 +167,32 @@ function Sidebar() {
 	}, []);
 
 	const {conversas, focado} = estado;
+
+	// O spinner só anda enquanto alguma conversa trabalha.
+	const trabalhando = conversas.some(c => c.status === 'trabalhando');
+	useEffect(() => {
+		if (!trabalhando) return;
+		const intervalo = setInterval(() => setQuadro(q => q + 1), 250);
+		return () => clearInterval(intervalo);
+	}, [trabalhando]);
+
+	// O git é relido a cada 5s, fora do ciclo de 1s da lista.
+	const pastas = [...new Set(conversas.map(c => c.pasta).filter(Boolean))].join('\n');
+	useEffect(() => {
+		let vivo = true;
+		const ler = async () => {
+			const lista = pastas.split('\n').filter(Boolean);
+			const lidas = await Promise.all(lista.map(diff));
+			if (vivo) setMudancas(Object.fromEntries(lista.map((p, i) => [p, lidas[i]])));
+		};
+		ler();
+		const intervalo = setInterval(ler, 5000);
+		return () => {
+			vivo = false;
+			clearInterval(intervalo);
+		};
+	}, [pastas]);
+
 	// O cursor segue a conversa pelo id; sem cursor, fica na que está na tela.
 	let i = conversas.findIndex(c => c.id === cursor);
 	if (i < 0) i = Math.max(0, conversas.findIndex(c => c.naTela));
@@ -135,10 +229,14 @@ function Sidebar() {
 
 	const abrir = id => agir(() => conv.abrir(sidebar, id));
 
-	// Só cabem algumas conversas: mostra a fatia em volta do cursor.
-	const cabem = Math.max(1, Math.floor((linhas - 5) / 3));
+	// Só cabem algumas conversas: mostra a fatia em volta do cursor. Fora o
+	// título e o rodapé, sobram linhas para elas, menos uma para o "↓ mais"
+	// quando não cabem todas (o "↑ acima" usa a linha abaixo do título).
+	let cabem = Math.max(1, Math.floor((linhas - 6) / 3));
+	if (conversas.length > cabem) cabem = Math.max(1, Math.floor((linhas - 7) / 3));
 	const inicio = Math.min(Math.max(0, i - Math.floor(cabem / 2)), Math.max(0, conversas.length - cabem));
 	const visiveis = conversas.slice(inicio, inicio + cabem);
+	const abaixo = conversas.length - inicio - visiveis.length;
 
 	// Clique (botão 0) abre a conversa; a rodinha (64/65) move o cursor. Os
 	// botões começam na linha 3 e têm 3 linhas cada.
@@ -183,7 +281,18 @@ function Sidebar() {
 
 		if (key.upArrow || input === 'k') setCursor(conversas[Math.max(0, i - 1)]?.id);
 		else if (key.downArrow || input === 'j') setCursor(conversas[Math.min(conversas.length - 1, i + 1)]?.id);
+		else if (input === 'g') setCursor(conversas[0]?.id);
+		else if (input === 'G') setCursor(conversas.at(-1)?.id);
 		else if (key.return && sob) abrir(sob.id);
+		else if (/^[1-9]$/.test(input) && conversas[input - 1]) abrir(conversas[input - 1].id);
+		else if (key.tab || input === 'p') {
+			// Tab volta para a anterior; p vai para a próxima pendente. Sem
+			// nenhuma, fica onde está.
+			agir(() => {
+				const id = key.tab ? conv.anterior(sidebar) : conv.pendente(sidebar);
+				if (id) conv.abrir(sidebar, id);
+			});
+		}
 		else if (input === 'n') {
 			agir(() => setCursor(conv.nova(sidebar)));
 		} else if (input === 'x' && sob) setConfirmar(sob.id);
@@ -197,25 +306,59 @@ function Sidebar() {
 		else if (key.escape) agir(() => tmux('select-pane', '-t', naTela()));
 	});
 
-	const dica = (key, texto) => h(Text, {key, color: apagado, wrap: 'truncate-end'}, texto);
+	// Dicas do rodapé: tecla no tom de destaque, ação apagada.
+	const dica = (key, ...pares) => h(
+		Text,
+		{key, wrap: 'truncate-end'},
+		pares.flatMap(([tecla, acao], j) => [
+			j ? h(Text, {key: `s${j}`, color: apagado}, ' · ') : null,
+			h(Text, {key: `t${j}`, color: destaque}, tecla),
+			h(Text, {key: `a${j}`, color: apagado}, ` ${acao}`),
+		]),
+	);
 	let rodape;
-	if (confirmar) rodape = [h(Text, {key: 1, color: aviso, wrap: 'truncate-end'}, `fechar ${alvo?.titulo}?`), dica(2, 's sim · n não')];
-	else if (ajuda) rodape = [dica(1, '? ou esc  fechar')];
-	else if (focado) rodape = [dica(1, '↑↓ enter  abrir'), dica(2, 'n nova · x fechar'), dica(3, '? ajuda · esc sai')];
-	else rodape = [dica(1, 'ctrl+t  nova'), dica(2, 'ctrl+w  fechar'), dica(3, 'ctrl+\\  sidebar')];
+	if (confirmar) rodape = [h(Text, {key: 1, color: aviso, wrap: 'truncate-end'}, `fechar ${alvo?.titulo}?`), dica(2, ['s', 'sim'], ['n', 'não'])];
+	else if (ajuda) rodape = [dica(1, ['? esc', 'fechar'])];
+	else if (focado) rodape = [dica(1, ['↑↓ enter', 'abrir']), dica(2, ['n', 'nova'], ['x', 'fechar']), dica(3, ['?', 'ajuda'], ['esc', 'sai'])];
+	else rodape = [dica(1, ['ctrl+t', 'nova']), dica(2, ['ctrl+w', 'fechar']), dica(3, ['ctrl+\\', 'sidebar'])];
 
+	// No título, quantas esperam por você e quantas terminaram sem ser vistas
+	// (como o resumo de grupo do workmux), e o total.
+	const esperando = conversas.filter(c => c.status === 'esperando').length;
+	const novas = conversas.filter(c => c.novo && !c.naTela && c.status === 'pronto').length;
+	// Textos irmãos, sem aninhar: o Ink mede errado um Text com filhos vazios.
+	const contagem = h(
+		Box,
+		{flexShrink: 0, marginLeft: 1, gap: 1},
+		esperando ? h(Text, {color: cores.esperando}, `?${esperando}`) : null,
+		novas ? h(Text, {color: cores.pronto}, `✓${novas}`) : null,
+		h(Text, {color: apagado}, String(conversas.length)),
+	);
+	const seta = (key, texto) => h(Text, {key, color: apagado, wrap: 'truncate-end'}, texto);
+
+	// Uma linha a menos que o pane: com a altura toda, o Ink limpa a tela a
+	// cada render (o spinner faria isso 4 vezes por segundo).
 	return h(
 		Box,
-		{flexDirection: 'column', paddingX: 1, height: linhas},
-		h(Text, {bold: true}, ajuda ? 'Atalhos' : 'Conversas'),
+		{flexDirection: 'column', paddingX: 1, height: linhas - 1},
 		h(
 			Box,
-			{flexDirection: 'column', marginTop: 1, flexGrow: 1, overflow: 'hidden'},
+			{justifyContent: 'space-between', flexShrink: 0},
+			h(Box, {flexShrink: 1, overflow: 'hidden'}, h(Text, {bold: true, color: focado ? destaque : undefined, wrap: 'truncate-end'}, ajuda ? 'Atalhos' : 'Conversas')),
+			ajuda ? null : contagem,
+		),
+		h(Box, {height: 1, flexShrink: 0}, !ajuda && inicio ? seta(1, `↑ ${inicio} acima`) : null),
+		h(
+			Box,
+			{flexDirection: 'column', flexGrow: 1, overflow: 'hidden'},
 			ajuda
 				? h(Ajuda)
-				: visiveis.map(c =>
-					h(Conversa, {key: c.id, conversa: c, sobCursor: focado && c === sob}),
-				),
+				: [
+					...visiveis.map(c =>
+						h(Conversa, {key: c.id, conversa: c, sobCursor: focado && c === sob, quadro, mudancas: mudancas[c.pasta], largura: colunas - 2}),
+					),
+					abaixo ? seta('abaixo', `↓ ${abaixo} abaixo`) : null,
+				],
 		),
 		h(Box, {flexDirection: 'column', height: 3, flexShrink: 0, justifyContent: 'flex-end'}, rodape),
 	);

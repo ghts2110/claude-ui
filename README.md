@@ -1,16 +1,16 @@
 # claude-ui
 
-Interface para o [Claude Code](https://claude.com/claude-code) no terminal: o `claude` ocupa a maior parte da tela e, ao lado, uma barra lateral lista as conversas abertas na sessão.
+Interface para o [Claude Code](https://claude.com/claude-code) no terminal: o `claude` ocupa a maior parte da tela e, ao lado, uma barra lateral lista as conversas abertas na sessão. O visual e várias funções do sidebar se inspiram no [workmux](https://github.com/raine/workmux).
 
 ```
 ┌──────────────┬────────────────────────────────────────┐
-│ Conversas    │                                        │
+│ Conversas ?1 │                                        │
 │              │                                        │
-│ ● refatorar… │     claude                             │
-│ ● corrige o… │                                        │
-│ ○ nova conv… │                                        │
-│              │                                        │
-│ ? ajuda      │                                        │
+│ ▎ ⠧ Refat…   │     claude                             │
+│ ▎   claude-… │                                        │
+│ ──────────── │                                        │
+│ ▎ ? Corri…   │                                        │
+│ ▎   claude-… │                                        │
 └──────────────┴────────────────────────────────────────┘
 ```
 
@@ -51,13 +51,17 @@ Abra um terminal novo e digite `claude`. Argumentos são repassados ao Claude Co
 
 No sidebar, cada conversa é um `claude` separado; as que não estão na tela continuam rodando.
 
-- O título de cada conversa é a primeira mensagem dela (até lá, "nova conversa"); `/clear` volta ao provisório.
-- A bolinha mostra o status: verde quando o Claude terminou, azul quando precisa de você (pergunta, permissão ou aprovação), amarela enquanto trabalha. Vazia quando a conversa ainda não teve mensagem.
+- O título de cada conversa é o assunto que o Claude Code dá a ela (o mesmo do título do terminal); antes disso, a primeira mensagem, e até lá "nova conversa". `/clear` volta ao provisório.
+- A faixa e o ícone à esquerda mostram o status: `✓` verde quando o Claude terminou, `?` azul quando precisa de você (pergunta, permissão ou aprovação), spinner amarelo enquanto trabalha. `○` quando a conversa ainda não teve mensagem. Ao lado, há quanto tempo está nesse status.
+- Embaixo do título, a pasta da conversa e as linhas mudadas desde o último commit (`+12 -3`), se for um repositório git.
+- Conversa que termina ou passa a esperar por você fora da tela fica em negrito até ser aberta. O topo do sidebar conta quantas esperam (`?1`), quantas terminaram sem ser vistas (`✓2`) e o total.
 - Quando o logo do Claude Code (versão, modelo, plano e pasta) rola para fora da conversa, uma cópia dele fica fixa acima dela; se o logo voltar à tela, a cópia sai. Se ele sumir do histórico, aparecem só versão, plano e pasta.
+- A borda do pane com o foco fica em ciano.
 - Título e status vêm de hooks do Claude Code, passados com `--settings` (ver `sidebar/hooks.json`). Se você também passar `--settings`, ou desligar hooks nas suas configurações, a conversa fica sem título e sem status.
 
 - `Ctrl-\` alterna o foco entre o sidebar e a conversa.
-- `↑`/`↓` ou `j`/`k` escolhem a conversa, `Enter` a traz para a tela. Com o mouse: clique no botão da conversa; a rodinha move a seleção.
+- `↑`/`↓` ou `j`/`k` escolhem a conversa (`g`/`G` vão ao início e ao fim), `Enter` a traz para a tela. `1`-`9` abrem a conversa daquela posição direto. Com o mouse: clique na conversa; a rodinha move a seleção.
+- `Tab` volta para a conversa que estava na tela antes. `p` vai para a próxima pendente: a que passou a esperar por você ou terminou fora da tela sem ser vista, depois as que continuam esperando.
 - `n` abre uma conversa nova, `x` fecha a selecionada (pede confirmação), `Esc` volta para a conversa.
 - De qualquer lugar: `Ctrl-T` abre uma conversa nova e `Ctrl-W` fecha a que está na tela (confirma com `s`). Dentro da interface, esses atalhos deixam de chegar ao Claude Code.
 - `h` esconde o sidebar e a conversa ocupa o terminal inteiro; `Ctrl-\` o traz de volta.
