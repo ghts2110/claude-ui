@@ -88,6 +88,12 @@ Quando o logo do Claude Code (versão, modelo, plano e pasta) rola para fora da 
 
 No rodapé do sidebar, um anel enche em laranja conforme a janela de 5h do plano Pro/Max é consumida. Com o mouse em cima, ou depois de um clique nele, aparecem a % usada e a hora em que a janela reinicia. O dado vem da statusline do Claude Code, então só muda quando alguma conversa do claude-ui recebe resposta; antes disso, ou com login por API, o anel fica apagado. Se você tem uma statusline própria, ela continua aparecendo.
 
+### Leitura em voz alta
+
+O alto-falante no canto de baixo do sidebar (ou `v`, com o sidebar focado) liga a leitura: cada texto que o Claude escreve na conversa da tela é falado assim que ele termina aquele trecho, sempre o mais recente; o que já estava escrito antes de ligar não é lido. Blocos de código, diffs, tabelas e saídas de comando ficam de fora. Um texto novo, uma mensagem sua, `Esc` ou `Ctrl-C` calam a fala; as conversas em segundo plano ficam em silêncio. Começa desligada.
+
+Usa a voz pt-br do próprio sistema (`say` no macOS, `espeak-ng` no Linux): funciona offline e não gasta tokens. Sem voz pt-br instalada, o sidebar mostra como instalar (no macOS, em Ajustes do Sistema > Acessibilidade > Conteúdo Falado > Voz do Sistema > Gerenciar Vozes).
+
 ### Sidebar ajustável
 
 `h` esconde o sidebar e a conversa ocupa o terminal inteiro; `Ctrl-\` o traz de volta. `<` e `>` estreitam e alargam o sidebar, e arrastar a borda com o mouse também vale. A largura se mantém ao redimensionar o terminal, até metade dele. A borda do pane com o foco fica em ciano.
@@ -114,6 +120,8 @@ No macOS, enquanto a interface estiver aberta, o Mac não entra em repouso por i
 | `n` / `x` | sidebar | conversa nova / fecha a selecionada (pede confirmação) |
 | `h` | sidebar | esconde o sidebar |
 | `<` / `>` | sidebar | estreita / alarga o sidebar |
+| `v`, clique no alto-falante | sidebar | liga / desliga a leitura em voz alta |
+| `Esc`, `Ctrl-C` | qualquer lugar | calam a fala em andamento |
 | `?` | sidebar | mostra os atalhos (`?`, `q` ou `Esc` fecham) |
 | `Esc` | sidebar | volta para a conversa |
 
