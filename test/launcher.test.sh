@@ -16,6 +16,12 @@ mkdir -p "$TMP/www"
 (cd "$TMP/www" && exec python3 -m http.server "$PORTA" --bind 127.0.0.1) >/dev/null 2>&1 &
 HTTP=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null "http://127.0.0.1:$PORTA/" && break; sleep 0.3; done
+# Ditado: o modelo vem do mesmo servidor (só depois que o teste dele o põe
+# lá) e um ouvinte falso faz o papel do ouvir.js, que precisaria do modelo de
+# verdade. Ele faz o que $TMP/ouvir mandar e guarda o pid em $TMP/ouvinte.
+export CLAUDE_UI_DITADO_URL="http://127.0.0.1:$PORTA/ditado.tar.bz2"
+export CLAUDE_UI_VAD_URL="http://127.0.0.1:$PORTA/vad.onnx"
+export CLAUDE_UI_OUVIR="$FAKE/ouvir"
 # Sem o binário do sherpa-onnx para esta plataforma, não há voz natural.
 [ -e "$ROOT/node_modules/sherpa-onnx-$(node -p 'process.platform + "-" + process.arch')/sherpa-onnx.node" ] && NATURAL=1
 trap 'tmux -L "$CLAUDE_UI_SOCKET" kill-server 2>/dev/null; kill $HTTP 2>/dev/null' EXIT
@@ -59,6 +65,22 @@ trap 'exit 0' TERM
 sleep 30 & wait \$!
 FAKE
 chmod +x "$FAKE/say"
+
+cat > "$FAKE/ouvir" <<FAKE
+#!/bin/sh
+echo \$\$ > "$TMP/ouvinte"
+echo '{"evento":"ouvindo"}'
+case \$(cat "$TMP/ouvir" 2>/dev/null) in
+	permissao | silencio) echo "{\\"evento\\":\\"\$(cat "$TMP/ouvir")\\"}"; exit 0 ;;
+	quebrado) exit 1 ;;
+esac
+echo '{"evento":"voz","falando":true}'
+echo '{"evento":"texto","texto":"corrige o teste"}'
+echo '{"evento":"texto","texto":"e roda de novo"}'
+trap 'exit 0' TERM
+sleep 30 & wait \$!
+FAKE
+chmod +x "$FAKE/ouvir"
 
 falhas=0
 ok() { echo "ok   - $1"; }
@@ -376,7 +398,7 @@ printf 'Luciana             pt_BR    # Olá\nLuciana (Enhanced)  pt_BR    # Olá
 clicar_voz
 canto | grep -q "◁)" && ! T capture-pane -p -t "$sb" | grep -q "Gerenciar" \
 	&& ok "clique no alto-falante liga a leitura" || falha "ligar: $(canto)"
-[ -z "$NATURAL" ] || { T capture-pane -p -t "$sb" | grep -q "lendo com a do sistema" && [ ! -e "$TMP/cache/claude-ui/vits-piper-pt_BR-faber-medium" ] \
+[ -z "$NATURAL" ] || { T capture-pane -p -t "$sb" | grep -q "usando a do sistema" && [ ! -e "$TMP/cache/claude-ui/vits-piper-pt_BR-faber-medium" ] \
 	&& ok "sem baixar a voz natural, avisa e usa a do sistema" || falha "aviso da voz natural: $(T capture-pane -p -t "$sb")"; }
 # O transcript chega pelos hooks; só o que ele escrever depois de ligar é lido.
 pane=$(T list-panes -t "$sb" -F '#{pane_id} #{@conversa}' | awk '$2 { print $1 }')
@@ -427,9 +449,76 @@ if [ -n "$NATURAL" ]; then
 	[ -e "$TMP/cache/claude-ui/vits-piper-pt_BR-faber-medium/pt_BR-faber-medium.onnx" ] && ! ls "$TMP/cache/claude-ui" | grep -q baixando \
 		&& ! T capture-pane -p -t "$sb" | grep -q "voz natural" && ok "baixa a voz natural para o cache" || falha "download: $(ls "$TMP/cache/claude-ui" 2>&1)"
 	resposta "$transcript" false "natural"; sleep 2
-	[ "$(cat "$TMP/falado" 2>/dev/null)" = "natural." ] && T capture-pane -p -t "$sb" | grep -q "lendo com a do sistema" \
+	[ "$(cat "$TMP/falado" 2>/dev/null)" = "natural." ] && T capture-pane -p -t "$sb" | grep -q "usando a do sistema" \
 		&& ok "voz natural quebrada cai para a do sistema" || falha "fallback: $(cat "$TMP/falado" 2>/dev/null) | $(T capture-pane -p -t "$sb" | tail -4)"
 	tecla v
+fi
+
+# Ditado por voz: o microfone fica acima do alto-falante (linha 28) e começa
+# desligado. O primeiro clique baixa o modelo; sem ele no ar, avisa e
+# continua desligado.
+mic() { T capture-pane -p -t "$sb" | sed -n 28p; }
+clicar_mic() { T send-keys -t "$sb" -l "$(printf '\033[<0;%s;28M' "$(($(T display -p -t "$sb" '#{pane_width}') - 2))")"; sleep 1.5; }
+ouvinte_vivo() { [ -e "$TMP/ouvinte" ] && kill -0 "$(cat "$TMP/ouvinte")" 2>/dev/null; }
+mic | grep -q "◉×" && ok "microfone começa desligado" || falha "microfone: $(mic)"
+if [ -n "$NATURAL" ]; then
+	clicar_mic
+	mic | grep -q "◉×" && T capture-pane -p -t "$sb" | grep -q "o download falhou" \
+		&& ok "sem o modelo no ar, o ditado avisa" || falha "download do ditado: $(T capture-pane -p -t "$sb" | tail -4)"
+	mkdir -p "$TMP/pacote/sherpa-onnx-whisper-turbo"
+	for f in turbo-encoder.int8.onnx turbo-decoder.int8.onnx turbo-tokens.txt; do : > "$TMP/pacote/sherpa-onnx-whisper-turbo/$f"; done
+	tar cjf "$TMP/www/ditado.tar.bz2" -C "$TMP/pacote" sherpa-onnx-whisper-turbo
+	: > "$TMP/www/vad.onnx"
+	# Com a leitura ligada, o ditado a deixa muda.
+	tecla v
+	clicar_mic
+	[ -e "$TMP/cache/claude-ui/sherpa-onnx-whisper-turbo/silero_vad.onnx" ] && ! ls "$TMP/cache/claude-ui" | grep -q baixando \
+		&& ok "baixa o modelo do ditado para o cache" || falha "modelo do ditado: $(ls -R "$TMP/cache/claude-ui" 2>&1 | head)"
+	mic | grep -q "◉)" && T capture-pane -p -t "$sb" | grep -q "ouvindo" \
+		&& ok "clique no microfone liga o ditado" || falha "ditado ligado: $(mic)"
+	T capture-pane -p -t "$pane" | grep -q "corrige o teste e roda de novo$" \
+		&& ok "o que foi dito é digitado na conversa, sem enviar" || falha "digitado: $(T capture-pane -p -t "$pane" | grep . | tail -3)"
+	rm -f "$TMP/falado"
+	resposta "$transcript" false "durante o ditado"
+	[ ! -e "$TMP/falado" ] && ok "enquanto o microfone ouve, a leitura fica muda" || falha "leu durante o ditado: $(cat "$TMP/falado")"
+	# Ctrl-Q, de dentro da conversa, desliga.
+	T select-pane -t "$pane"; sleep 0.3
+	T send-keys -K -c "$cliente" C-q; sleep 1.5
+	mic | grep -q "◉×" && ! ouvinte_vivo && ok "ctrl+q desliga o ditado" || falha "ctrl+q: $(mic)"
+	T send-keys -K -c "$cliente" C-q; sleep 1.5
+	mic | grep -q "◉" && ouvinte_vivo && ok "ctrl+q liga o ditado de qualquer lugar" || falha "ctrl+q ligar: $(mic)"
+	tecla m
+	mic | grep -q "◉×" && ! ouvinte_vivo && ok "m desliga o ditado" || falha "m: $(mic)"
+	tecla v
+	# Enviar a mensagem desliga o ditado.
+	tecla m
+	hook "$pane" trabalhando "{\"transcript_path\":\"$transcript\",\"hook_event_name\":\"UserPromptSubmit\"}"; sleep 1.5
+	mic | grep -q "◉×" && ! ouvinte_vivo && ok "mensagem enviada desliga o ditado" || falha "enviar: $(mic)"
+	# Conversa esperando uma escolha: o que foi dito espera ela aceitar texto.
+	ditos() { T capture-pane -p -J -S - -t "$pane" | grep -o "corrige o teste" | wc -l | tr -d ' '; }
+	antes=$(ditos)
+	T set -p -t "$pane" @status esperando
+	tecla m
+	[ "$(ditos)" = "$antes" ] && ok "conversa esperando escolha não recebe o ditado" || falha "digitou esperando: $antes -> $(ditos)"
+	T set -p -t "$pane" @status pronto; sleep 1.5
+	[ "$(ditos)" = "$((antes + 1))" ] && ok "depois da escolha, o ditado é digitado" || falha "guardado: $antes -> $(ditos)"
+	tecla m
+	# Dois Ctrl-Q seguidos se anulam.
+	T send-keys -K -c "$cliente" C-q; T send-keys -K -c "$cliente" C-q; sleep 2
+	mic | grep -q "◉×" && ! ouvinte_vivo && ok "dois ctrl+q seguidos se anulam" || falha "ctrl+q duplo: $(mic)"
+	echo permissao > "$TMP/ouvir"
+	clicar_mic
+	T capture-pane -p -t "$sb" | grep -q "Privacidade" && mic | grep -q "◉×" \
+		&& ok "sem acesso ao microfone, diz como liberar" || falha "permissão: $(T capture-pane -p -t "$sb")"
+	tecla q
+	echo silencio > "$TMP/ouvir"
+	clicar_mic
+	T capture-pane -p -t "$sb" | grep -q "parei de ouvir" && mic | grep -q "◉×" \
+		&& ok "silêncio longo para o ditado sozinho" || falha "silêncio: $(T capture-pane -p -t "$sb" | tail -4)"
+	echo quebrado > "$TMP/ouvir"
+	clicar_mic
+	T capture-pane -p -t "$sb" | grep -q "o ditado falhou" && mic | grep -q "◉×" \
+		&& ok "ouvinte quebrado avisa e desliga" || falha "quebrado: $(T capture-pane -p -t "$sb" | tail -4)"
 fi
 
 # Fechar o terminal encerra tudo.
