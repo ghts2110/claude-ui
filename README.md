@@ -29,7 +29,8 @@ Interface para o [Claude Code](https://claude.com/claude-code) no terminal: o `c
 - [tmux](https://github.com/tmux/tmux) 3.x
 - [Node](https://nodejs.org) 20+
 - [Claude Code](https://claude.com/claude-code) instalado e logado
-- Opcional, só para o [ditado por voz](#ditado-por-voz): um gravador de áudio. No macOS, o [ffmpeg](https://ffmpeg.org) (ou o `sox`); no Linux, o `parec` (pulseaudio-utils), o `pw-record` (pipewire) ou o `arecord` (alsa-utils).
+- Opcional, só para o [ditado por voz](#ditado-por-voz): um gravador de áudio. No macOS, o [ffmpeg](https://ffmpeg.org) ou o `sox`; no Linux, o `parec` (pulseaudio-utils), o `pw-record` (pipewire), o `arecord` (alsa-utils), o `ffmpeg` ou o `sox`.
+- Só no Linux, para baixar a voz e o modelo do ditado: `bzip2`.
 
 Confira se estão no PATH:
 
@@ -106,7 +107,7 @@ A faixa e o ícone à esquerda mostram o status: `✓` verde quando o Claude ter
 
 ### Título, pasta e linhas mudadas
 
-O título é o assunto que o Claude Code dá à conversa (o mesmo do título do terminal); antes disso, a primeira mensagem, e até lá "nova conversa". `/clear` volta ao provisório.
+O título é o assunto que o Claude Code dá à conversa (o mesmo do título do terminal). Até ele dar um assunto, o título é a sua primeira mensagem; antes dela, "nova conversa". `/clear` volta ao provisório.
 
 Embaixo, a pasta da conversa e as linhas que o Claude adicionou e removeu nela com as ferramentas de edição (`+12 -3`), contadas por conversa: duas conversas no mesmo repositório mostram cada uma as suas, e uma que não editou nada não mostra contador. É o acumulado das edições, não o saldo contra o último commit: editar a mesma linha duas vezes conta duas, e mudanças feitas por comandos no terminal ficam de fora. `/clear` zera o contador.
 
@@ -136,7 +137,7 @@ No rodapé do sidebar, um anel enche em laranja conforme a janela de 5h do plano
 
 O alto-falante no canto de baixo do sidebar (ou `v`, com o sidebar focado) liga a leitura: cada texto que o Claude escreve na conversa da tela é falado assim que ele termina aquele trecho, sempre o mais recente; o que já estava escrito antes de ligar não é lido. Blocos de código, diffs, tabelas, links e saídas de comando ficam de fora. Um texto novo, uma mensagem sua, `Esc` ou `Ctrl-C` calam a fala; as conversas em segundo plano ficam em silêncio. Começa desligada.
 
-A voz é a Piper pt_BR faber, gerada no próprio computador pelo sherpa-onnx e começa a falar meio segundo depois do texto. Na primeira vez, ela é baixada (ver [Modelos de voz e ditado](#modelos-de-voz-e-ditado)). Enquanto baixa, ou se o download falhar, a leitura usa a voz pt-br do sistema (`say` no macOS, `espeak-ng` no Linux) e tenta baixar de novo na próxima vez que for ligada. Sem nenhuma das duas, o sidebar mostra como instalar a do sistema.
+A voz é a Piper pt_BR faber, gerada no próprio computador pelo sherpa-onnx, e começa a falar meio segundo depois do texto. Na primeira vez, ela é baixada (ver [Modelos de voz e ditado](#modelos-de-voz-e-ditado)). Enquanto baixa, ou se o download falhar, a leitura usa a voz pt-br do sistema (`say` no macOS, `espeak-ng` no Linux) e tenta baixar de novo na próxima vez que for ligada. Sem nenhuma das duas, o sidebar mostra como instalar a do sistema.
 
 ### Ditado por voz
 
@@ -145,10 +146,10 @@ A voz é a Piper pt_BR faber, gerada no próprio computador pelo sherpa-onnx e c
 O microfone no rodapé do sidebar, logo acima do alto-falante (ou `Ctrl-Q` de qualquer lugar, ou `m` com o sidebar focado), liga o ditado: o que você fala vai sendo digitado no campo de mensagem da conversa da tela, uma frase de cada vez, a cada pausa. Nada é enviado sozinho: revise, corrija se precisar e aperte `Enter`.
 
 - **Parar:** clicar de novo, `Ctrl-Q` ou `m` param de ouvir (o que já foi dito ainda é digitado). Enviar a mensagem e 20 segundos sem fala também param.
-- **Escolhas:** se a conversa está esperando uma escolha sua (permissão, pergunta), o que você ditar espera ela voltar ao campo de mensagem, para nenhuma palavra escolher uma opção.
+- **Escolhas:** se a conversa está esperando uma escolha sua (permissão, pergunta), o que você ditar fica guardado até o campo de mensagem voltar, para nenhuma palavra ser tomada como resposta da escolha.
 - **Enquanto ouve:** o ícone fica vermelho, as ondas pulsam com a sua voz e a leitura em voz alta fica muda, para o ditado não transcrever a voz do Claude.
 
-O reconhecimento é o Whisper turbo, o reconhecimento de voz aberto da OpenAI, rodando no próprio computador pelo sherpa-onnx: entende termos em inglês no meio do português ("abre um pull request"). Na primeira vez, o modelo é baixado, com o progresso no rodapé (ver [Modelos de voz e ditado](#modelos-de-voz-e-ditado)). Ouvir o microfone precisa de um gravador (ver [Requisitos](#1-requisitos)) e, no macOS, do [acesso do Terminal ao microfone](#4-permissões-e-ajustes-do-macos); faltando algum, o sidebar diz o que fazer.
+O ditado usa o Whisper turbo, o modelo aberto de reconhecimento de voz da OpenAI, rodando no próprio computador pelo sherpa-onnx: entende termos em inglês no meio do português ("abre um pull request"). Na primeira vez, o modelo é baixado, com o progresso no rodapé (ver [Modelos de voz e ditado](#modelos-de-voz-e-ditado)). Ouvir o microfone precisa de um gravador (ver [Requisitos](#1-requisitos)) e, no macOS, do [acesso do Terminal ao microfone](#4-permissões-e-ajustes-do-macos); faltando algum, o sidebar diz o que fazer.
 
 ### Sidebar ajustável
 
@@ -184,7 +185,7 @@ No macOS, enquanto a interface estiver aberta, o Mac não entra em repouso e a t
 | `?` | sidebar | mostra os atalhos (`?`, `q` ou `Esc` fecham) |
 | `Esc` | sidebar | volta para a conversa |
 
-Fora `Ctrl-\`, `Ctrl-T`, `Ctrl-W` e `Ctrl-Q`, os atalhos só valem com o sidebar focado, então os do Claude Code continuam chegando a ele. Esses quatro deixam de chegar ao Claude Code dentro da interface (o `Ctrl-W` não apaga mais a palavra anterior no prompt). O prefixo do tmux fica desligado (`Ctrl-b` chega ao Claude Code) e `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
+Fora `Ctrl-\`, `Ctrl-T`, `Ctrl-W` e `Ctrl-Q` (e `Esc`/`Ctrl-C`, que calam a fala e seguem chegando ao Claude Code), os atalhos só valem com o sidebar focado, então os do Claude Code continuam chegando a ele. Esses quatro deixam de chegar ao Claude Code dentro da interface (o `Ctrl-W` não apaga mais a palavra anterior no prompt). O prefixo do tmux fica desligado (`Ctrl-b` chega ao Claude Code) e `Ctrl-Z` fica desativado: suspenderia o claude sem um shell para trazê-lo de volta.
 
 ## Claude Code puro
 
@@ -215,9 +216,10 @@ A interface sempre deixa uma saída para o Claude Code sem nada em volta:
 | Nenhum som quando uma conversa termina | Confira o sino do perfil do Terminal.app e o volume de alertas (ver [Permissões e ajustes do macOS](#4-permissões-e-ajustes-do-macos)). |
 | "sem voz natural: usando a do sistema" | O download da voz falhou (sem internet, sem `bzip2` no Linux). A leitura segue com a voz do sistema e tenta baixar de novo na próxima vez que for ligada. |
 | "Sem voz em português do Brasil." | Sem a voz natural e sem voz pt-br no sistema. Instale uma em Ajustes do Sistema > Acessibilidade > Conteúdo Falado > Voz do Sistema > Gerenciar Vozes (Linux: `sudo apt install espeak-ng`). |
-| "Sem gravador de áudio." | Instale o `ffmpeg` (`brew install ffmpeg`); no Linux, `pulseaudio-utils`, `pipewire` ou `alsa-utils`. Depois clique no microfone de novo. |
+| "Sem gravador de áudio." | Instale o `ffmpeg` (`brew install ffmpeg`); no Linux, `pulseaudio-utils`, `pipewire` (`pw-record`) ou `alsa-utils`. Depois clique no microfone de novo. |
 | "Sem acesso ao microfone." | Libere o Terminal em Ajustes do Sistema > Privacidade e Segurança > Microfone e reabra o Terminal. Se já está liberado, confira o volume de entrada em Ajustes do Sistema > Som > Entrada. |
 | "sem ditado: o download falhou" | Sem internet ou sem `bzip2` no Linux. Clique no microfone para tentar de novo. |
+| "o ditado falhou: clique para tentar" | O modelo não abriu (por exemplo, arquivo corrompido em `~/.cache/claude-ui`). Clique no microfone para tentar de novo; se repetir, apague a pasta do modelo para ele ser baixado outra vez. |
 | "silêncio longo: parei de ouvir" | 20 segundos sem fala desligam o microfone. Ligue de novo quando for falar. |
 
 Enquanto não resolve, `command claude` abre o Claude Code puro.
