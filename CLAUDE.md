@@ -1,6 +1,6 @@
 # claude-ui
 
-Sidebar de conversas para o Claude Code no terminal. Visão geral e roadmap no `README.md`.
+Sidebar de conversas para o Claude Code no terminal. Visão geral no `README.md`.
 
 ## Arquitetura
 
